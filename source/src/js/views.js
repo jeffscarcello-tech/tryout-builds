@@ -13,9 +13,10 @@ function brandBar(right) {
   return h('header', { class: 'top' },
     h('div', { class: 'brand grow' }, h('img', { src: '/icon.svg', alt: '', class: 'applogo' }), h('span', { class: 'wm' }, 'Roster', h('b', null, 'Pulse'))), right);
 }
-function topBar(title, back, right) {
+/* direct: Back always goes to the given page (scoring: from a player straight to the list, never player to player) */
+function topBar(title, back, right, direct) {
   return h('header', { class: 'top' },
-    h('button', { class: 'iconbtn', 'aria-label': 'Back', onclick: () => goBack(back) }, icon('back')),
+    h('button', { class: 'iconbtn', 'aria-label': 'Back', onclick: () => direct ? goReplace(...[].concat(back)) : goBack(back) }, icon('back')),
     h('div', { class: 'title ellip grow' }, title), right);
 }
 function connPill() { const on = navigator.onLine; return h('span', { class: 'conn' + (on ? '' : ' off'), 'data-conn': '' }, h('span', { class: 'dot' }), on ? 'Online' : 'Offline'); }
@@ -23,6 +24,9 @@ const sect = (label, right) => h('div', { class: 'sect' }, label, h('span', { cl
 const field = (label, input, hint) => h('div', { class: 'field' }, h('label', null, label), input, hint ? h('div', { class: 'note' }, hint) : null);
 const fmtDate = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+
+/* go to a page without adding a history step (so the phone's own back button does not walk through every player) */
+const goReplace = (...p) => { location.replace('#/' + p.map(encodeURIComponent).join('/')); };
 
 /* a one-line text question in a sheet */
 function promptBox({ title, value = '', placeholder = '', ok = 'Save', max = 40, note }) {
@@ -308,8 +312,12 @@ function formTab(ev) {
     f.tests.length ? h('div', { class: 'list', style: 'gap:8px' }, f.tests.map((t, i) => h('div', { class: 'krow' },
       h('button', { class: 'knm', onclick: () => testSheet(ev, t) }, h('div', { class: 'pnm' }, t.name), h('div', { class: 'pmeta' }, (t.unit ? t.unit + ' · ' : '') + (t.better === 'low' ? 'lower is better' : 'higher is better'))),
       h('button', { class: 'mini', 'aria-label': 'Move up', disabled: i === 0, onclick: () => { move(f.tests, i, -1); touch(ev); render(); } }, icon('up')),
-      h('button', { class: 'mini', 'aria-label': 'Move down', disabled: i === f.tests.length - 1, onclick: () => { move(f.tests, i, 1); touch(ev); render(); } }, icon('down'))))) : h('p', { class: 'note' }, 'None. Add a time, a count or a distance, like a 40 m sprint.'),
+      h('button', { class: 'mini', 'aria-label': 'Move down', disabled: i === f.tests.length - 1, onclick: () => { move(f.tests, i, 1); touch(ev); render(); } }, icon('down')),
+      h('button', { class: 'mini', 'aria-label': 'Remove', onclick: () => { f.tests.splice(i, 1); touch(ev); render(); toastAction('Removed ' + t.name + '.', 'Undo', () => { f.tests.splice(i, 0, t); touch(ev); render(); }); } }, icon('x'))))) : h('p', { class: 'note' }, 'None. Add a time, a count or a distance, like a 40 m sprint.'),
     h('button', { class: 'chip add', style: 'margin-top:10px', onclick: () => testSheet(ev, null) }, icon('plus'), 'Add test'),
+    f.tests.some(t => unitKind(t.unit) === 'dist') ? [h('div', { class: 'lbl', style: 'margin:14px 0 8px' }, 'Measuring system'),
+      h('div', { class: 'seg' }, [['metric', 'Metric (cm, m)'], ['imperial', 'Imperial (in, ft)']].map(([k, l]) => h('button', { class: systemOf(f) === k ? 'on' : '', onclick: () => { const n = setSystem(ev, k); render(); if (n) toast('Changed ' + plural(n, 'test', 'tests') + ' to ' + (k === 'metric' ? 'metric' : 'imperial') + '.'); } }, l))),
+      h('p', { class: 'note', style: 'margin-top:6px' }, 'Switches distance tests and converts any values already entered. Times and counts do not change.')] : null,
     daysEditor(ev),
     sect('More'),
     h('div', { class: 'stack' },
@@ -323,16 +331,24 @@ function formTab(ev) {
 function testSheet(ev, t) {
   const isNew = !t, d = Object.assign({ name: '', unit: 's', better: 'low' }, t || {});
   openSheet((s, api) => {
-    const name = h('input', { class: 'inp', value: d.name, maxlength: '30', placeholder: '40 m sprint' }), unit = h('input', { class: 'inp', value: d.unit, maxlength: '8', placeholder: 's, cm, m, reps', style: 'max-width:140px' });
+    const name = h('input', { class: 'inp', value: d.name, maxlength: '30', placeholder: '40 m sprint' });
+    const other = h('input', { class: 'inp', value: UNITS.some(u => u[0] === d.unit) ? '' : d.unit, maxlength: '8', placeholder: 'Other unit', style: 'max-width:160px' });
+    other.addEventListener('input', () => { if (other.value.trim()) { d.unit = clean(other.value, 8); paint(); } });
+    const box = h('div', { class: 'stack', style: 'gap:8px' });
+    const paint = () => box.replaceChildren([['time', 'Time'], ['dist', 'Distance'], ['count', 'Count']].map(([kind, label]) => h('div', { class: 'row', style: 'flex-wrap:wrap;gap:8px' },
+      h('span', { class: 'lbl', style: 'min-width:70px' }, label),
+      UNITS.filter(u => u[1] === kind).map(([u, , full]) => h('button', { class: 'chip' + (d.unit === u ? ' on' : ''), type: 'button', title: full, onclick: () => { d.unit = u; other.value = ''; if (kind === 'time') d.better = 'low'; else d.better = 'high'; paint(); paintBetter(); } }, u)))), other);
+    const betterBox = h('div'), paintBetter = () => betterBox.replaceChildren(chipPick([['low', 'Lower (times)'], ['high', 'Higher (distance, reps)']], d.better, v => { d.better = v; }, false));
+    paint(); paintBetter();
     s.append(h('h2', null, isNew ? 'Add a measured test' : d.name), h('div', { class: 'stack' },
-      field('Test name', name), field('Unit', unit, 'Seconds (s), centimetres (cm), metres (m), reps.'),
-      field('Which is better?', chipPick([['low', 'Lower (times)'], ['high', 'Higher (distance, reps)']], d.better, v => { d.better = v; }, false))),
+      field('Test name', name), field('Unit', box), field('Which is better?', betterBox)),
       h('div', { class: 'acts' },
         isNew ? h('button', { class: 'btn', onclick: () => api.close() }, 'Cancel') : h('button', { class: 'btn danger', onclick: () => { ev.form.tests = ev.form.tests.filter(x => x !== t); touch(ev); api.close(); render(); } }, 'Remove'),
         h('button', { class: 'btn primary', onclick: () => {
           const nm = clean(name.value, 30); if (!nm) { toast('Give the test a name.'); return; }
-          const o = isNew ? { id: uid('t') } : t; Object.assign(o, { name: nm, unit: clean(unit.value, 8), better: d.better });
-          if (isNew) ev.form.tests.push(o); touch(ev); api.close(); render();
+          if (isNew) { ev.form.tests.push({ id: uid('t'), name: nm, unit: d.unit, better: d.better }); }
+          else { if (t.unit !== d.unit) convertTest(ev, t, d.unit); Object.assign(t, { name: nm, better: d.better }); }
+          touch(ev); api.close(); render();
         } }, 'Save')));
   });
 }

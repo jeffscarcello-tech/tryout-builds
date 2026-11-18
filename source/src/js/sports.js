@@ -68,3 +68,24 @@ function copyForm(f) {
   return c;
 }
 const SCALES = [['5', '1 to 5'], ['10', '1 to 10'], ['pcm', '+ / ✓ / −']];
+
+/* ---------- units for measured tests ---------- */
+const UNITS = [['s', 'time', 'seconds'], ['min', 'time', 'minutes'], ['cm', 'dist', 'centimetres'], ['m', 'dist', 'metres'], ['in', 'dist', 'inches'], ['ft', 'dist', 'feet'], ['yd', 'dist', 'yards'], ['reps', 'count', 'repetitions'], ['laps', 'count', 'laps'], ['pts', 'count', 'points']];
+const UNIT_BASE = { s: 1, min: 60, cm: 1, m: 100, in: 2.54, ft: 30.48, yd: 91.44 };   // seconds, centimetres
+const unitKind = u => { const x = UNITS.find(y => y[0] === u); return x ? x[1] : 'other'; };
+const SWAP = { metric: { in: 'cm', ft: 'm', yd: 'm' }, imperial: { cm: 'in', m: 'ft' } };
+const systemOf = f => (f.tests || []).some(t => ['in', 'ft', 'yd'].includes(t.unit)) && !(f.tests || []).some(t => ['cm', 'm'].includes(t.unit)) ? 'imperial' : (f.units || 'metric');
+/* change one test's unit; values already entered for it are converted when both units are the same kind (time or distance) */
+function convertTest(ev, t, to) {
+  const from = t.unit, k1 = unitKind(from), k2 = unitKind(to);
+  if (from !== to && UNIT_BASE[from] && UNIT_BASE[to] && k1 === k2) {
+    const f = UNIT_BASE[from] / UNIT_BASE[to];
+    for (const key in ev.scores || {}) { const parts = key.split('|'); const r = ev.scores[key]; if (parts[2] === t.id && r && typeof r.v === 'number') r.v = Math.round(r.v * f * 1000) / 1000; }
+  }
+  t.unit = to;
+}
+/* switch every distance test to metric or imperial; returns how many changed */
+function setSystem(ev, sys) {
+  let n = 0; for (const t of ev.form.tests) { const to = SWAP[sys][t.unit]; if (to) { convertTest(ev, t, to); n++; } }
+  ev.form.units = sys; touch(ev); return n;
+}

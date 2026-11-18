@@ -9,7 +9,7 @@ const ctx = { console, JSON, Date, Math, Map, Set, String, Object, Array, parseI
   localStorage: { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } },
   window: { addEventListener() { } }, document: { addEventListener() { }, hidden: false }, toast() { } };
 vm.createContext(ctx);
-vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays };', ctx);
+vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind };', ctx);
 const T = ctx.__t;
 let n = 0; const ok = m => { n++; console.log('ok', n, m); };
 
@@ -67,4 +67,11 @@ T.setScore(hk, 'p1', k0, 'd2', 5); sh = T.shownScore(hk, 'p1', k0, 'd2'); assert
 const old = { id: 'eold', name: 'Old', sport: 'volleyball', form: T.formFromSport('volleyball'), groups: [], players: [], scores: { 'v1|p1|k1': { id: 'r1', v: 4, t: 1 } }, notes: { 'v1|p1': { id: 'r2', v: 'hi', t: 1 } } };
 delete old.form.combine; T.ensureDays(old); assert.equal(old.sessions.length, 1); assert.equal(old.scores['v1|p1|k1|d1'].v, 4); assert.equal(old.notes['v1|p1||d1'].v, 'hi'); assert.equal(old.form.combine, 'avg'); ok('scores from build t3 move to Day 1');
 T.save(true); assert.ok(JSON.parse(mem['rp.v1']).events.find(e => e.id === hk.id).scores); ok('scores stored on the phone');
+// units
+const vbe = T.newEvent('VB', 'volleyball'); T.ensureDays(vbe); const vj = vbe.form.tests[0]; assert.equal(vj.unit, 'cm');
+vbe.scores = { ['me|p1|' + vj.id + '|d1']: { id: 'x', v: 50, t: 1 } };
+assert.equal(T.systemOf(vbe.form), 'metric'); let nchg = T.setSystem(vbe, 'imperial'); assert.equal(nchg, 2); assert.equal(vj.unit, 'in'); assert.equal(vbe.scores['me|p1|' + vj.id + '|d1'].v, 19.685); assert.equal(T.systemOf(vbe.form), 'imperial'); ok('metric to imperial converts units and entered values');
+T.setSystem(vbe, 'metric'); assert.equal(vj.unit, 'cm'); assert.equal(vbe.scores['me|p1|' + vj.id + '|d1'].v, 50); ok('and back to exactly 50');
+const fb = T.newEvent('FB', 'football'); assert.equal(T.systemOf(fb.form), 'metric'); const bj = fb.form.tests.find(t => t.name === 'Broad jump'); T.convertTest(fb, bj, 'ft'); assert.equal(bj.unit, 'ft'); const dash = fb.form.tests[0]; T.convertTest(fb, dash, 'reps'); assert.equal(dash.unit, 'reps'); ok('single test unit change, time to count leaves values alone');
+assert.equal(T.unitKind('s'), 'time'); assert.equal(T.unitKind('yd'), 'dist'); assert.equal(T.unitKind('zz'), 'other'); ok('unit kinds');
 console.log('ALL', n, 'UNIT TESTS PASSED');

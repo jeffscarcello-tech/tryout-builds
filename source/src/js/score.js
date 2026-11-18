@@ -158,7 +158,7 @@ function viewScorePlayer(evId, sid, gid, pid) {
       sect('Overall note'), notes,
       h('div', { class: 'toprow', style: 'margin-top:18px' },
         h('button', { class: 'btn', onclick: () => go('s', ev.id, sid, gid) }, 'All ' + W.players),
-        nextUnscored ? h('button', { class: 'btn primary', onclick: () => go('s', ev.id, sid, gid, nextUnscored.id) }, 'Next: #' + (nextUnscored.num || '–'), icon('chev')) : h('button', { class: 'btn primary', onclick: () => { go('s', ev.id, sid, gid); toast('Everyone here is scored.'); } }, 'Done')))];
+        nextUnscored ? h('button', { class: 'btn primary', onclick: () => goReplace('s', ev.id, sid, gid, nextUnscored.id) }, 'Next: #' + (nextUnscored.num || '–'), icon('chev')) : h('button', { class: 'btn primary', onclick: () => { go('s', ev.id, sid, gid); toast('Everyone here is scored.'); } }, 'Done')))];
 }
 
 /* progress on the organizer's player list (latest day) */

@@ -86,7 +86,8 @@ def run(p, name, vp, mobile):
     assert '13/13' in pg.inner_text('header'), pg.inner_text('header')
     shot('9-score')
     pg.locator('button', has_text='Next: #').click(); pg.wait_for_selector('.srow'); assert 'Jordan P' not in pg.inner_text('header')
-    pg.locator('button', has_text='All players').click(); pg.wait_for_selector('.keypad')
+    pg.locator('button', has_text='Next: #').click(); pg.wait_for_selector('.srow')
+    pg.click('button[aria-label="Back"]'); pg.wait_for_selector('.keypad'); assert 'Group A' in pg.inner_text('header'), 'Back goes to the list, not the previous player'
     # by name: the full list only
     pg.locator('.seg button', has_text='By name').click(); pg.wait_for_selector('.prow2'); assert pg.locator('.keypad').count() == 0
     names = [x.inner_text() for x in pg.locator('.prow2 .pnm').all()]; assert names == sorted(names) and len(names) == 3, names
@@ -97,6 +98,17 @@ def run(p, name, vp, mobile):
     # days: add Day 2, carry scores forward
     pg.goto(URL + '#/'); pg.locator('.evcard', has_text='U15 girls').click(); pg.locator('.seg button', has_text='Form').click(); pg.wait_for_selector('text=Add day')
     pg.click('text=Add day'); pg.wait_for_selector('text=How the days count'); pg.locator('.prow', has_text='Carry scores forward').click()
+    # measured tests: imperial switch converts Jordan's values; remove a test with undo
+    pg.locator('.seg button', has_text='Imperial').click(); time.sleep(0.2)
+    assert pg.locator('.krow', has_text='Vertical jump').locator('.pmeta').inner_text().startswith('in'), 'unit switched'
+    ev = [e for e in json.loads(pg.evaluate("localStorage.getItem('rp.v1')"))['events'] if e['name'] == 'U15 girls tryouts'][0]
+    vj = [t for t in ev['form']['tests'] if t['name'] == 'Vertical jump'][0]['id']
+    vals = [r['v'] for k, r in ev['scores'].items() if k.split('|')[2] == vj]; assert vals == [15.748], vals
+    pg.locator('.krow', has_text='Block jump').locator('button[aria-label="Remove"]').click(); assert pg.locator('.krow', has_text='Block jump').count() == 0
+    pg.click('.toast .tbtn'); time.sleep(0.2); assert pg.locator('.krow', has_text='Block jump').count() == 1, 'undo remove test'
+    pg.locator('.krow', has_text='Approach jump').locator('.knm').click(); sheet().locator('button.chip', has_text='cm').click(); sheet().locator('button', has_text='Save').last.click(); time.sleep(0.2)
+    assert pg.locator('.krow', has_text='Approach jump').locator('.pmeta').inner_text().startswith('cm')
+    shot('12-tests')
     pg.locator('.seg button', has_text='Players').click(); pg.click('text=Start scoring')
     sheet().locator('button.chip', has_text='Day 2').click(); sheet().locator('.item', has_text='Group A').click(); pg.wait_for_selector('.prow2')
     assert 'Day 2' in pg.inner_text('header')
