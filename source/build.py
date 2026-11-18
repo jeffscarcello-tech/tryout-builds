@@ -13,7 +13,7 @@ import base64, json, os, re, sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, 'src')
-JS_ORDER = ['dom.js', 'main.js']
+JS_ORDER = ['dom.js', 'ui.js', 'sports.js', 'store.js', 'views.js', 'main.js']
 CSS_ORDER = ['fonts.css', 'style.css', 'app.css']
 
 

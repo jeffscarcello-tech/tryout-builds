@@ -47,7 +47,7 @@ svg.i{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke
 /* ---------- controls ---------- */
 .btn{border:0;border-radius:14px;min-height:50px;padding:0 18px;font-weight:800;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--panel3);color:var(--text);border:1px solid var(--line2)}
 .btn:active{transform:scale(.98);filter:brightness(1.15)}
-.btn.primary{background:linear-gradient(180deg,var(--accent2),var(--accent));color:var(--accent-ink);border-color:transparent;box-shadow:0 6px 20px rgba(20,172,253,.28)}
+.btn.primary{background:linear-gradient(180deg,var(--accent2),var(--accent));color:var(--accent-ink);border-color:transparent;box-shadow:0 6px 20px rgba(255,138,31,.28)}
 .btn.ghost{background:transparent}
 .btn.danger{background:rgba(255,90,95,.12);color:var(--bad);border-color:rgba(255,90,95,.35)}
 .btn.block{width:100%} .btn.big{min-height:62px;font-size:18px;border-radius:16px}
@@ -56,7 +56,7 @@ svg.i{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke
 .field{display:flex;flex-direction:column;gap:6px}
 .field>label,.lbl{font-size:12px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
 .inp{width:100%;min-height:50px;border-radius:13px;border:1px solid var(--line2);background:var(--bg2);padding:0 14px;font-size:16px;outline:none}
-.inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(20,172,253,.18)}
+.inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,138,31,.18)}
 select.inp{appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 20px) 22px,calc(100% - 14px) 22px;background-size:6px 6px;background-repeat:no-repeat;padding-right:34px}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{min-height:44px;padding:0 15px;border-radius:999px;border:1px solid var(--line2);background:var(--panel2);font-weight:700;font-size:15px;display:inline-flex;align-items:center;gap:7px}
@@ -105,7 +105,7 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:linear-gradi
 .tbl th{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:800;white-space:nowrap}
 .tbl td:first-child,.tbl th:first-child{text-align:left;padding-left:2px}
 .tbl tr:last-child td{border-bottom:0}
-.tbl .cur{background:rgba(20,172,253,.09)}
+.tbl .cur{background:rgba(255,138,31,.09)}
 .tbl .tot{font-weight:900}
 .tbl.sortable th{cursor:pointer;padding:12px 4px}
 .tbl.sortable th.on{color:var(--accent)}
@@ -136,7 +136,7 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:linear-gradi
 .sheet h2{touch-action:none}
 .scrim{cursor:pointer} .sheet{cursor:auto}
 .prow{display:flex;align-items:center;gap:12px;width:100%;min-height:64px;padding:10px 14px;border-radius:14px;border:1px solid var(--line2);background:var(--panel2);text-align:left;font-size:17px;font-weight:800}
-.prow.on{border-color:var(--accent);background:rgba(20,172,253,.12)}
+.prow.on{border-color:var(--accent);background:rgba(255,138,31,.12)}
 .prow .tag{margin-left:auto;font-size:11px;font-weight:900;letter-spacing:.08em;color:var(--accent)}
 .toast{position:fixed;left:50%;top:calc(64px + var(--safe-t));bottom:auto;transform:translateX(-50%);z-index:200;background:#25252d;border:1px solid var(--line2);color:#fff;padding:12px 16px;border-radius:14px;font-weight:700;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.5);max-width:90vw;animation:rise .2s ease-out}
 
@@ -189,7 +189,7 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:linear-gradi
 .undo[disabled]{opacity:.4}
 .fixrow{display:flex;gap:10px;margin:0 10px 10px}
 .fixrow .undo{margin:0;width:auto;flex:1.5;min-width:0}
-.fixrow .undo.fix{flex:1;background:rgba(20,172,253,.12);border-color:rgba(20,172,253,.45)}
+.fixrow .undo.fix{flex:1;background:rgba(255,138,31,.12);border-color:rgba(255,138,31,.45)}
 .fixgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .fixgrid .btn{min-height:60px;font-weight:900;font-size:17px}
 .evrow .evmain{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:12px;flex:1;min-width:0;min-height:56px;cursor:pointer}
@@ -222,7 +222,7 @@ select.inp{appearance:none;-webkit-appearance:none;background-image:linear-gradi
 .preview .nm{font-size:30px;line-height:1.02;overflow-wrap:anywhere}
 .emojigrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
 .emojigrid button{aspect-ratio:1/1;border-radius:14px;border:1px solid var(--line2);background:var(--panel2);font-size:26px;display:grid;place-items:center;padding:0}
-.emojigrid button.on{border-color:var(--accent);background:rgba(20,172,253,.15)}
+.emojigrid button.on{border-color:var(--accent);background:rgba(255,138,31,.15)}
 .gr{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);min-height:58px}
 .gr:last-child{border-bottom:0}
 .gnum{min-width:38px;height:38px;border-radius:10px;background:var(--panel3);display:grid;place-items:center;font-weight:900;font-size:15px;padding:0 6px}
@@ -343,7 +343,7 @@ header.top{gap:10px}
 .sportbtn .si{font-size:24px;line-height:1}
 .sportbtn b{font-weight:900;font-size:15px}
 .sportbtn .tiny{line-height:1.25}
-.sportbtn.on{border-color:var(--accent);background:rgba(20,172,253,.12)}
+.sportbtn.on{border-color:var(--accent);background:rgba(255,138,31,.12)}
 .bbcol{justify-content:space-between}
 .bbrow{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;flex:none}
 .bbrow.made{flex:1;grid-template-columns:1fr 1fr;grid-template-rows:2fr 1fr;min-height:0}
@@ -382,7 +382,7 @@ header.top{gap:10px}
   .tabs .in{display:flex;flex-direction:column;gap:4px;max-width:none}
   .tab{flex-direction:row;justify-content:flex-start;gap:14px;min-height:50px;padding:0 16px;font-size:16px;border-radius:12px;cursor:pointer}
   .tab:hover{background:var(--panel2,#1a1a20);color:var(--text)}
-  .tab.on{background:rgba(20,172,253,.12)}
+  .tab.on{background:rgba(255,138,31,.12)}
   .tab svg.i{width:22px;height:22px}
   #app:not(.full){max-width:none;margin:0 0 0 236px;padding-bottom:40px}
   #app:not(.full) .page{max-width:1240px;margin:0 auto;padding:24px 32px}
