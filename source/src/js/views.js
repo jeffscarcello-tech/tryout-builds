@@ -127,8 +127,9 @@ function playersTab(ev) {
   const shown = sortPlayers(ev.players.filter(p => playerFilter === 'all' || (playerFilter === 'none' ? !groupsById[p.group] : p.group === playerFilter)));
   const unassigned = ev.players.filter(p => !groupsById[p.group]).length;
   return [
+    ev.players.length ? h('button', { class: 'btn primary block big', style: 'margin-bottom:12px', onclick: () => startScoring(ev) }, icon('check'), 'Start scoring') : null,
     h('div', { class: 'toprow' },
-      h('button', { class: 'btn primary', onclick: () => playerSheet(ev, null) }, icon('plus'), 'Add ' + W.player),
+      h('button', { class: 'btn' + (ev.players.length ? '' : ' primary'), onclick: () => playerSheet(ev, null) }, icon('plus'), 'Add ' + W.player),
       h('button', { class: 'btn', onclick: () => importSheet(ev) }, icon('file'), 'Import list')),
     ev.groups.length ? h('div', { class: 'hscroll', style: 'margin-top:14px' },
       [['all', 'All · ' + ev.players.length]].concat(ev.groups.map(g => [g.id, g.name + ' · ' + ev.players.filter(p => p.group === g.id).length]), unassigned ? [['none', 'No group · ' + unassigned]] : [])
@@ -141,7 +142,7 @@ function playersTab(ev) {
         h('span', { class: 'jn' + (dup.has((p.group || '') + '|' + p.num) ? ' dup' : '') }, p.num || '–'),
         h('div', { class: 'grow', style: 'min-width:0' }, h('div', { class: 'pnm ellip' }, p.name || 'No name'),
           h('div', { class: 'pmeta ellip' }, [p.pos, p.div, g ? g.name : null, p.notes ? 'Note' : null].filter(Boolean).join(' · ') || ' ')),
-        icon('chev'));
+        progressBadge(ev, p), icon('chev'));
     })) : h('div', { class: 'empty' }, ev.players.length ? 'No ' + W.players + ' here.' : 'No ' + W.players + ' yet. Add them one at a time, or paste a list from a spreadsheet or email.')
   ];
 }
@@ -313,7 +314,7 @@ function formTab(ev) {
     h('div', { class: 'stack' },
       h('button', { class: 'btn block', onclick: () => saveTemplate(ev) }, icon('clip'), 'Save as my template'),
       sp.id !== 'blank' ? h('button', { class: 'btn block ghost', onclick: async () => {
-        if (!(await confirmBox({ title: 'Reset the form?', message: 'Skills, ' + W.positions + ' and tests go back to the ' + sp.name + ' starting list. ' + cap(W.players) + ' and groups are kept.', ok: 'Reset', danger: true }))) return;
+        if (!(await confirmBox({ title: 'Reset the form?', message: 'Skills, ' + W.positions + ' and tests go back to the ' + sp.name + ' starting list. ' + cap(W.players) + ' and groups are kept.' + (ev.scores && Object.keys(ev.scores).length ? ' Scores already entered for the current skills will no longer show.' : ''), ok: 'Reset', danger: true }))) return;
         const d = f.divisions; ev.form = formFromSport(ev.sport); ev.form.divisions = d; touch(ev); render();
       } }, 'Reset to the ' + sp.name + ' starting list') : null)
   ];

@@ -3,13 +3,13 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert';  // loose deepEqual: arrays made inside the vm have a different prototype
 
-const src = ['sports.js', 'store.js'].map(f => readFileSync(new URL('../src/js/' + f, import.meta.url), 'utf8')).join('\n');
+const src = ['sports.js', 'store.js', 'score.js'].map(f => readFileSync(new URL('../src/js/' + f, import.meta.url), 'utf8')).join('\n');
 const mem = {};
 const ctx = { console, JSON, Date, Math, Map, Set, String, Object, Array, parseInt, setTimeout, clearTimeout,
   localStorage: { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } },
   window: { addEventListener() { } }, document: { addEventListener() { }, hidden: false }, toast() { } };
 vm.createContext(ctx);
-vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save };', ctx);
+vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers };', ctx);
 const T = ctx.__t;
 let n = 0; const ok = m => { n++; console.log('ok', n, m); };
 
@@ -45,4 +45,18 @@ const tpl = T.formFromSport('soccer'); const ev2 = T.newEvent('From template', '
 const back = T.exportData(); T.S.events.length = 0; let res = T.importData(back); assert.equal(res.added, 2); assert.equal(T.S.events.length, 2); ok('backup and restore');
 res = T.importData(back); assert.equal(res.added, 0); ok('restoring twice adds nothing');
 assert.throws(() => T.importData('{"app":"shotpulse"}')); assert.throws(() => T.importData('nope')); ok('wrong file refused');
+// scoring
+const hk = T.newEvent('Hockey camp', 'hockey');
+hk.players.push({ id: 'p1', num: '9', name: 'A', pos: 'Forward', group: 'g1' }, { id: 'p2', num: '30', name: 'B', pos: 'Goalie', group: 'g1' }, { id: 'p3', num: '4', name: 'C', pos: '', group: 'g2' });
+assert.equal(T.skillsFor(hk, hk.players[1]), hk.form.alt.skills); assert.equal(T.skillsFor(hk, hk.players[0]), hk.form.skills); ok('goalie gets the goalie skill list');
+assert.deepEqual(T.scaleValues('5').map(x => x[0]), [1, 2, 3, 4, 5]); assert.equal(T.scaleValues('10').length, 10); assert.deepEqual(T.scaleValues('pcm').map(x => x[1]), ['+', '✓', '−']); ok('scales');
+const k0 = hk.form.skills[0].id; T.setScore(hk, 'p1', k0, 4); assert.equal(T.getScore(hk, 'p1', k0), 4);
+const id1 = hk.scores[T.me().id + '|p1|' + k0].id; T.setScore(hk, 'p1', k0, 5); assert.equal(T.getScore(hk, 'p1', k0), 5); assert.notEqual(hk.scores[T.me().id + '|p1|' + k0].id, id1); ok('changing a score makes a new record id (for sync later)');
+T.setScore(hk, 'p1', k0, null); assert.equal(T.getScore(hk, 'p1', k0), null); ok('clearing a score');
+hk.form.skills.forEach((k, i) => T.setScore(hk, 'p1', k.id, 3)); let pr = T.progressOf(hk, hk.players[0]); assert.equal(pr.done, 7); assert.equal(pr.all, 8); ok('progress counts skills and tests (7 of 8)');
+T.setScore(hk, 'p1', hk.form.tests[0].id, 41.25); pr = T.progressOf(hk, hk.players[0]); assert.equal(pr.done, pr.all); ok('test value fills the last one');
+assert.equal(T.getScore(hk, 'p1', k0, 'someone-else'), null); ok('scores belong to one evaluator');
+T.setNote(hk, 'p1', 'Strong <b>skater</b>'); assert.equal(T.getNote(hk, 'p1'), 'Strong bskater/b'); ok('notes saved and cleaned');
+assert.deepEqual(T.groupPlayers(hk, 'g1').map(p => p.num), ['9', '30']); assert.equal(T.groupPlayers(hk, 'all').length, 3); ok('group filter for scoring');
+T.save(true); assert.ok(JSON.parse(mem['rp.v1']).events.find(e => e.id === hk.id).scores); ok('scores stored on the phone');
 console.log('ALL', n, 'UNIT TESTS PASSED');

@@ -40,3 +40,29 @@ textarea.inp{min-height:180px;padding:12px 14px;line-height:1.45;font-family:inh
 @media (min-width:900px){ #app{max-width:820px} }
 .toast,.toast.act{top:auto;bottom:calc(18px + var(--safe-b))}
 .list{display:flex;flex-direction:column}   /* one column everywhere: reorder arrows must read top to bottom */
+/* ---------- scoring ---------- */
+.numshow{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:64px;padding:8px 16px;border-radius:16px;background:var(--panel);border:1px solid var(--line2);font-size:28px;font-weight:900;font-variant-numeric:tabular-nums}
+.numshow.bad{color:var(--bad)}
+.keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.key{min-height:58px;border-radius:14px;border:1px solid var(--line2);background:var(--panel2);font-size:24px;font-weight:900;color:var(--text)}
+.key.fn{color:var(--muted);font-size:20px}
+.key:active{background:var(--panel3)}
+.tiles2{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px}
+.ntile{position:relative;min-height:72px;border-radius:14px;border:1px solid var(--line2);background:var(--panel);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 4px;color:var(--text)}
+.ntile b{font-size:22px;font-weight:900;font-variant-numeric:tabular-nums}
+.ntile span{font-size:11px;color:var(--muted);font-weight:700;max-width:100%}
+.ntile i{position:absolute;top:4px;right:6px;font-style:normal;font-size:10px;font-weight:800;color:var(--gold)}
+.ntile svg.i{position:absolute;top:5px;right:5px;color:var(--good)}
+.ntile.full{border-color:rgba(55,208,131,.5);background:rgba(55,208,131,.08)}
+.ntile.part{border-color:rgba(255,210,63,.45)}
+.ntile.out{opacity:.5}
+.srow{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
+.sname{font-weight:800;font-size:16px}
+.sbtns{display:grid;gap:6px}
+.sbtns.n5,.sbtns.n10{grid-template-columns:repeat(5,1fr)}
+.sbtns.n3{grid-template-columns:repeat(3,1fr)}
+.sb{min-height:50px;border-radius:12px;border:1px solid var(--line2);background:var(--panel2);font-size:20px;font-weight:900;color:var(--text)}
+.sb.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.sb:active{filter:brightness(1.2)}
+.pbadge{font-size:11px;font-weight:800;padding:3px 8px;border-radius:999px;background:rgba(255,210,63,.14);color:var(--gold);flex:none}
+.pbadge.full{background:rgba(55,208,131,.15);color:var(--good)}

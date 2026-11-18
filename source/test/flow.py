@@ -60,6 +60,30 @@ def run(p, name, vp, mobile):
     pg.locator('.seg button', has_text='1 to 10').click()
     pg.locator('button.chip', has_text='+ U13').click() if pg.locator('button.chip', has_text='+ U13').count() else None
     shot('6-form')
+    # scoring on this phone
+    pg.locator('.seg button', has_text='Players').click(); pg.wait_for_selector('text=Start scoring'); pg.click('text=Start scoring')
+    sheet().locator('input.inp').fill('Coach J'); sheet().locator('button', has_text='Start scoring').click()
+    sheet().locator('.item', has_text='Group A').click(); pg.wait_for_selector('.keypad')
+    shot('8-numbers')
+    pg.locator('.key', has_text='9').click(); pg.wait_for_selector('.numshow.bad')   # nobody is #9
+    pg.locator('.key', has_text='C').click(); pg.locator('.key', has_text='7').click()
+    pg.wait_for_selector('.srow'); assert 'Jordan P' in pg.inner_text('header')
+    rows = pg.locator('.srow:has(.sbtns)'); nrows = rows.count(); assert nrows == 10, nrows
+    for i in range(nrows): rows.nth(i).locator('.sb').nth(i % 10).click()
+    assert pg.locator('.sb.on').count() == nrows
+    rows.nth(0).locator('.sb').nth(0).click(); assert pg.locator('.sb.on').count() == nrows - 1, 'tap again clears'
+    rows.nth(0).locator('.sb').nth(6).click()
+    tests = pg.locator('.srow input.inp')
+    for i in range(tests.count()): tests.nth(i).fill(str(40 + i)); tests.nth(i).press('Tab'); time.sleep(0.1)
+    pg.locator('textarea.inp').fill('Great hands'); pg.locator('.sname').first.click()
+    assert '13/13' in pg.inner_text('header'), pg.inner_text('header')
+    shot('9-score')
+    pg.locator('button', has_text='Next: #').click(); pg.wait_for_selector('.srow'); assert 'Jordan P' not in pg.inner_text('header')
+    pg.click('text=All numbers'); pg.wait_for_selector('.ntile.full'); assert pg.locator('.ntile.full').count() == 1
+    pg.reload(); pg.wait_for_selector('.ntile.full')
+    pg.locator('.ntile', has_text='7').click(); assert pg.locator('textarea.inp').input_value() == 'Great hands'
+    pg.goto(URL + '#/'); pg.locator('.evcard', has_text='U15 girls').click(); pg.wait_for_selector('.pbadge.full')
+    pg.locator('.seg button', has_text='Form').click(); pg.wait_for_selector('text=Save as my template')
     # save as template, then new event from it
     pg.click('text=Save as my template'); sheet().locator('input.inp').fill('My VB form'); sheet().locator('button', has_text='Save').last.click(); time.sleep(0.3)
     # reload: everything still there
