@@ -37,6 +37,7 @@ function shownScore(ev, pid, kid, sid, by) {
 }
 function setScore(ev, pid, kid, sid, v) {
   ev.scores = ev.scores || {};
+  ev.evaluators = ev.evaluators || {}; if (me().name) ev.evaluators[me().id] = me().name;
   ev.scores[sKey(me().id, pid, kid, sid)] = { id: uid('r'), v: v == null ? null : v, t: Date.now() };
   touch(ev);
 }

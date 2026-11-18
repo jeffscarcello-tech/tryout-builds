@@ -1,0 +1,240 @@
+/* =====================================================================
+   Results (stage 3): combine scores into one number per skill and an overall for each player,
+   rank them, flag disagreement, and gather notes. Works the same for one phone or many evaluators.
+
+   Per skill, per evaluator: combine that evaluator's days with the event's day rule
+     avg = average of the days scored, total = sum of the days, carry = the latest day scored.
+   Per skill: average across evaluators.
+   Overall: weighted average of the skills (as a percent of the best possible), shown on the scale too.
+   Tests: each evaluator's days combined the same way except total (uses best); across evaluators the best result.
+   Disagreement: two or more evaluators whose numbers for a skill are 40% of the scale range or more apart.
+   ===================================================================== */
+const scaleMax = sc => sc === 'pcm' ? 3 : sc === '10' ? 10 : 5;
+const r1 = x => Math.round(x * 10) / 10;
+function allSkills(ev) { const f = ev.form; return f.alt ? f.skills.concat(f.alt.skills) : f.skills.slice(); }
+function evaluatorsOf(ev) { const set = new Set(); for (const k in ev.scores || {}) if (ev.scores[k] && ev.scores[k].v != null) set.add(k.split('|')[0]); return [...set]; }
+const evalName = (ev, by) => (ev.evaluators && ev.evaluators[by]) || (S.settings.me && S.settings.me.id === by ? S.settings.me.name : '') || 'Evaluator';
+
+/* values[by][dayIndex] for one player and one skill/test */
+function valuesBy(ev, pid, kid, dayIds) {
+  const out = {};
+  for (const by of evaluatorsOf(ev)) {
+    const arr = dayIds.map(sid => getScore(ev, pid, kid, sid, by));
+    if (arr.some(v => v != null)) out[by] = arr;
+  }
+  return out;
+}
+function combineDays(arr, rule) {
+  const got = arr.filter(v => v != null); if (!got.length) return null;
+  if (rule === 'total') return got.reduce((a, b) => a + b, 0);
+  if (rule === 'carry') { for (let i = arr.length - 1; i >= 0; i--) if (arr[i] != null) return arr[i]; }
+  return got.reduce((a, b) => a + b, 0) / got.length;
+}
+const better = (t, a, b) => a == null ? b : b == null ? a : (t.better === 'low' ? Math.min(a, b) : Math.max(a, b));
+
+/* day: 'all' for the combined result, or one day id */
+function computeResults(ev, day) {
+  ensureDays(ev);
+  const f = ev.form, mx = scaleMax(f.scale), dayIds = day && day !== 'all' ? [day] : ev.sessions.map(d => d.id);
+  const rule = dayIds.length > 1 ? (f.combine || 'avg') : 'avg';
+  const skMax = rule === 'total' ? mx * dayIds.length : mx;
+  const spreadFlag = f.scale === 'pcm' ? 2 : (mx - 1) * 0.4;   // 1 to 5: 2 apart; 1 to 10: 4 apart; + / ✓ / −: + against −
+  const rows = ev.players.map(p => {
+    const ks = skillsFor(ev, p), skills = {}, tests = {}, evs = new Set();
+    let wsum = 0, wpct = 0, flagged = [];
+    for (const k of ks) {
+      const vb = valuesBy(ev, p.id, k.id, dayIds), per = [];
+      for (const by in vb) { const c = combineDays(vb[by], rule); if (c != null) { per.push(c); evs.add(by); } }
+      if (!per.length) { skills[k.id] = null; continue; }
+      const v = per.reduce((a, b) => a + b, 0) / per.length;
+      const spread = per.length > 1 ? (Math.max(...per) - Math.min(...per)) / (rule === 'total' ? dayIds.length : 1) : 0;
+      skills[k.id] = { v, pct: v / skMax * 100, n: per.length, spread, days: dayIds.length > 1 ? dayIds.map((sid, i) => { const d = Object.values(vb).map(a => a[i]).filter(x => x != null); return d.length ? d.reduce((a, b) => a + b, 0) / d.length : null; }) : null };
+      if (per.length > 1 && spread >= spreadFlag) flagged.push(k.name);
+      const w = k.w == null ? 1 : k.w; wsum += w; wpct += w * skills[k.id].pct;
+    }
+    for (const t of f.tests) {
+      const vb = valuesBy(ev, p.id, t.id, dayIds); let best = null;
+      for (const by in vb) { evs.add(by); const arr = vb[by]; let c; if (rule === 'carry') c = combineDays(arr, 'carry'); else if (rule === 'total') c = arr.reduce((a, b) => better(t, a, b), null); else c = combineDays(arr, 'avg'); best = better(t, best, c); }
+      tests[t.id] = best == null ? null : Math.round(best * 1000) / 1000;
+    }
+    const pct = wsum ? wpct / wsum : null;
+    return { p, skills, tests, pct, overall: pct == null ? null : pct / 100 * skMax, nEval: evs.size, flagged, scored: ks.filter(k => skills[k.id]).length, of: ks.length };
+  });
+  /* ranks: overall, and within position, group, division (only players with an overall) */
+  const ranked = rows.filter(r => r.pct != null).sort((a, b) => b.pct - a.pct);
+  const rankIn = (list, key) => { const groups = {}; for (const r of list) { const g = key(r); if (!g) continue; (groups[g] = groups[g] || []).push(r); } for (const g in groups) groups[g].forEach((r, i, a) => { r.rank = r.rank || {}; r.rank[key.name] = { at: tieRank(a, i), of: a.length, label: g }; }); };
+  const tieRank = (a, i) => { let j = i; while (j > 0 && Math.abs(a[j - 1].pct - a[i].pct) < 1e-9) j--; return j + 1; };
+  ranked.forEach((r, i, a) => { r.rank = { all: { at: tieRank(a, i), of: a.length } }; });
+  const groupName = r => { const g = ev.groups.find(x => x.id === r.p.group); return g ? g.name : ''; };
+  rankIn(ranked, function pos(r) { return r.p.pos; }); rankIn(ranked, function grp(r) { return groupName(r); }); rankIn(ranked, function div(r) { return r.p.div; });
+  /* test ranks */
+  for (const t of f.tests) { const have = rows.filter(r => r.tests[t.id] != null).sort((a, b) => t.better === 'low' ? a.tests[t.id] - b.tests[t.id] : b.tests[t.id] - a.tests[t.id]); have.forEach((r, i) => { r.testRank = r.testRank || {}; r.testRank[t.id] = { at: i + 1, of: have.length }; }); }
+  return { rows, mx, skMax, rule, dayIds };
+}
+
+/* every note for a player: roster note, overall notes and skill notes, newest first */
+function notesFor(ev, pid) {
+  const out = [], names = Object.fromEntries(allSkills(ev).concat(ev.form.tests).map(k => [k.id, k.name]));
+  const p = ev.players.find(x => x.id === pid);
+  if (p && p.notes) out.push({ who: 'Roster', text: p.notes, t: 0 });
+  for (const key in ev.notes || {}) {
+    const [by, p2, kid, sid] = key.split('|'), r = ev.notes[key];
+    if (p2 !== pid || !r || !r.v) continue;
+    const day = ev.sessions.length > 1 ? (ev.sessions.find(d => d.id === sid) || {}).name : null;
+    out.push({ who: evalName(ev, by), day, skill: kid ? names[kid] || 'Removed skill' : null, text: r.v, t: r.t || 0 });
+  }
+  return out.sort((a, b) => b.t - a.t);
+}
+
+/* ---------- convert scores when the scale changes (keeps each score's relative place) ---------- */
+function convertScale(ev, from, to) {
+  const a = scaleMax(from), b = scaleMax(to), ids = new Set(allSkills(ev).map(k => k.id)); let n = 0;
+  for (const key in ev.scores || {}) {
+    const r = ev.scores[key]; if (!r || r.v == null || !ids.has(key.split('|')[2])) continue;
+    const v = Math.min(Math.max(r.v, 1), a), nv = Math.round(1 + (v - 1) * (b - 1) / (a - 1));
+    ev.scores[key] = { id: uid('r'), v: Math.min(Math.max(nv, 1), b), t: Date.now() }; n++;
+  }
+  return n;
+}
+function hasSkillScores(ev) { const ids = new Set(allSkills(ev).map(k => k.id)); for (const key in ev.scores || {}) { const r = ev.scores[key]; if (r && r.v != null && ids.has(key.split('|')[2])) return true; } return false; }
+
+/* =====================================================================
+   Results tab: rankings list, sortable, with filters, a day view and the team line.
+   ===================================================================== */
+const RS = { sort: 'overall', day: 'all', group: '', pos: '', div: '' };
+const fmtV = (v, d = 1) => v == null ? '–' : (Math.round(v * Math.pow(10, d)) / Math.pow(10, d)).toString();
+const pcmLabel = v => v == null ? '–' : v >= 2.5 ? '+' : v >= 1.5 ? '✓' : '−';
+function resultRows(ev) {
+  if (RS.day !== 'all' && !ev.sessions.some(d => d.id === RS.day)) RS.day = 'all';
+  const res = computeResults(ev, RS.day), f = ev.form;
+  const gname = id => (ev.groups.find(g => g.id === id) || {}).name || '';
+  let rows = res.rows.filter(r => (!RS.group || r.p.group === RS.group) && (!RS.pos || r.p.pos === RS.pos) && (!RS.div || r.p.div === RS.div));
+  const test = f.tests.find(t => t.id === RS.sort), sk = allSkills(ev).find(k => k.id === RS.sort);
+  if (!test && !sk) RS.sort = 'overall';
+  const val = r => RS.sort === 'overall' ? r.pct : test ? r.tests[test.id] : (r.skills[sk.id] ? r.skills[sk.id].v : null);
+  rows.sort((a, b) => { const x = val(a), y = val(b); if (x == null && y == null) return (parseInt(a.p.num, 10) || 999) - (parseInt(b.p.num, 10) || 999); if (x == null) return 1; if (y == null) return -1; return test && test.better === 'low' ? x - y : y - x; });
+  return { res, rows, val, test, sk, gname };
+}
+function resultsTab(ev) {
+  ensureDays(ev);
+  const f = ev.form, { res, rows, val, test, sk, gname } = resultRows(ev);
+  const scored = rows.filter(r => val(r) != null), line = Math.max(0, Math.min(ev.line || 0, scored.length));
+  const sel = (label, value, opts, set, noBlank) => h('select', { class: 'inp', 'aria-label': label, onchange: e => { set(e.target.value); render(); } }, (noBlank ? [] : [['', label]]).concat(opts).map(([k, l]) => h('option', { value: k, selected: value === k ? '' : null }, l)));
+  const sortOpts = [['overall', 'Overall']].concat(allSkills(ev).map(k => [k.id, k.name]), f.tests.map(t => [t.id, t.name + (t.unit ? ' (' + t.unit + ')' : '')]));
+  const showVal = r => {
+    const v = val(r);
+    if (RS.sort === 'overall') return v == null ? null : [h('b', null, fmtV(r.overall)), h('span', null, Math.round(r.pct) + '%')];
+    if (test) return v == null ? null : [h('b', null, fmtV(v, 2)), h('span', null, test.unit || '')];
+    return v == null ? null : [h('b', null, f.scale === 'pcm' ? pcmLabel(v) : fmtV(v)), h('span', null, f.scale === 'pcm' ? '' : 'of ' + res.skMax)];
+  };
+  const list = [];
+  rows.forEach((r, i) => {
+    const v = val(r);
+    list.push(h('button', { class: 'rrow' + (v == null ? ' none' : ''), onclick: () => go('r', ev.id, r.p.id) },
+      h('span', { class: 'rk' }, v == null ? '' : i + 1),
+      h('span', { class: 'jn' }, r.p.num || '–'),
+      h('div', { class: 'grow', style: 'min-width:0' }, h('div', { class: 'pnm ellip' }, r.p.name || 'No name', r.flagged.length ? h('span', { class: 'flag', title: 'Evaluators disagree' }, ' ⚑') : null),
+        h('div', { class: 'pmeta ellip' }, [r.p.pos, gname(r.p.group), r.p.div, r.nEval > 1 ? r.nEval + ' evaluators' : null].filter(Boolean).join(' · ') || ' ')),
+      h('div', { class: 'rv' }, showVal(r) || h('span', null, 'not scored'))));
+    if (line && i === line - 1 && scored.length > line) list.push(h('div', { class: 'tline' }, h('span', null, 'Team line · ' + line + ' spots')));
+  });
+  return [
+    h('div', { class: 'rfilters' },
+      h('div', { class: 'row' }, h('span', { class: 'lbl', style: 'min-width:54px' }, 'Sort'), h('div', { class: 'grow' }, sel('Sort by', RS.sort, sortOpts, v => { RS.sort = v || 'overall'; }, true))),
+      ev.sessions.length > 1 ? h('div', { class: 'seg' }, [['all', 'All days']].concat(ev.sessions.map(d => [d.id, d.name])).map(([k, l]) => h('button', { class: RS.day === k ? 'on' : '', onclick: () => { RS.day = k; render(); } }, l))) : null,
+      h('div', { class: 'row', style: 'gap:8px' },
+        ev.groups.length ? h('div', { class: 'grow' }, sel('All groups', RS.group, ev.groups.map(g => [g.id, g.name]), v => { RS.group = v; })) : null,
+        f.positions.length ? h('div', { class: 'grow' }, sel('All ' + W.positions, RS.pos, f.positions.map(x => [x, x]), v => { RS.pos = v; })) : null,
+        f.divisions.length ? h('div', { class: 'grow' }, sel('All divisions', RS.div, f.divisions.map(x => [x, x]), v => { RS.div = v; })) : null)),
+    h('div', { class: 'row', style: 'margin:12px 0 4px' },
+      h('span', { class: 'lbl' }, 'Team line'),
+      h('button', { class: 'mini', 'aria-label': 'Fewer spots', onclick: () => { ev.line = Math.max(0, (ev.line || 0) - 1); touch(ev); render(); } }, '−'),
+      h('b', { class: 'num', style: 'min-width:28px;text-align:center' }, ev.line ? ev.line : 'off'),
+      h('button', { class: 'mini', 'aria-label': 'More spots', onclick: () => { ev.line = (ev.line || 0) + 1; touch(ev); render(); } }, icon('plus')),
+      h('span', { class: 'grow' }), h('span', { class: 'cnt' }, scored.length + ' of ' + rows.length + ' scored')),
+    res.rule !== 'avg' && RS.day === 'all' ? h('p', { class: 'note' }, res.rule === 'total' ? 'Days are added together (Form tab).' : 'Each skill uses its latest score (carry forward).') : null,
+    h('div', { class: 'list', style: 'gap:6px;margin-top:8px' }, list.length ? list : h('div', { class: 'empty' }, 'No ' + W.players + ' match.')),
+    h('p', { class: 'note', style: 'margin-top:10px' }, '⚑ = evaluators disagree a lot on a skill. Tap a ' + W.player + ' for the full card.'),
+    sect('Share'),
+    h('div', { class: 'toprow' },
+      h('button', { class: 'btn', onclick: () => saveFile(fileSafe(ev.name) + '-results.csv', resultsCsv(ev), 'text/csv') }, icon('dl'), 'Spreadsheet'),
+      h('button', { class: 'btn', onclick: () => printResults(ev) }, icon('file'), 'Print')),
+    h('p', { class: 'note', style: 'margin-top:8px' }, 'Results are for you only. Ratings are never shown to ' + W.players + ' or parents unless you share them.')
+  ];
+}
+const fileSafe = s => String(s || 'event').replace(/[^A-Za-z0-9 _-]/g, '').trim().replace(/\s+/g, '-').slice(0, 40) || 'event';
+
+/* ---------------- the player card (report card) ---------------- */
+function viewPlayerCard(evId, pid) {
+  const ev = eventById(evId); if (!ev) return viewHome();
+  ensureDays(ev); W = wordsOf(ev);
+  const { res, rows } = resultRows(ev), r = res.rows.find(x => x.p.id === pid);
+  if (!r) return viewEvent(evId, 'results');
+  const f = ev.form, p = r.p, ks = skillsFor(ev, p), mx = res.skMax;
+  const scoredKs = ks.filter(k => r.skills[k.id]).sort((a, b) => r.skills[b.id].pct - r.skills[a.id].pct);
+  const strong = scoredKs.length >= 3 ? scoredKs.slice(0, 2).map(k => k.id) : [], weak = scoredKs.length >= 3 ? scoredKs.slice(-2).map(k => k.id) : [];
+  const i = rows.findIndex(x => x.p.id === pid), prev = rows[i - 1], next = rows[i + 1];
+  const chip = (label, rk) => rk ? h('div', { class: 'rchip' }, h('b', null, '#' + rk.at), h('span', null, 'of ' + rk.of + ' ' + label)) : null;
+  const gname = (ev.groups.find(g => g.id === p.group) || {}).name;
+  const notes = notesFor(ev, pid);
+  return [topBar('#' + (p.num || '–') + ' ' + (p.name || ''), ['e', ev.id, 'results']),
+    h('main', { class: 'page card-page' },
+      h('div', { class: 'pmeta', style: 'margin:-4px 0 12px' }, [p.pos, gname, p.div, ev.name].filter(Boolean).join(' · ')),
+      h('div', { class: 'rcard' },
+        h('div', { class: 'ovr' }, r.pct == null ? h('div', { class: 'big' }, '–') : [h('div', { class: 'big' }, f.scale === 'pcm' ? Math.round(r.pct) + '%' : fmtV(r.overall)), h('div', { class: 'of' }, f.scale === 'pcm' ? 'overall' : 'out of ' + mx + ' · ' + Math.round(r.pct) + '%')]),
+        h('div', { class: 'rchips' },
+          r.rank ? [chip('overall', r.rank.all), r.rank.pos ? chip(p.pos + 's', r.rank.pos) : null, r.rank.grp ? chip('in ' + r.rank.grp.label, r.rank.grp) : null, r.rank.div ? chip('in ' + p.div, r.rank.div) : null] : h('div', { class: 'note' }, 'Not scored yet.'))),
+      h('div', { class: 'row', style: 'margin-top:10px;flex-wrap:wrap;gap:8px' },
+        h('span', { class: 'pbadge full' }, 'Scored by ' + plural(r.nEval, 'evaluator', 'evaluators')),
+        r.scored < r.of ? h('span', { class: 'pbadge' }, r.scored + ' of ' + r.of + ' skills scored') : null,
+        r.flagged.length ? h('span', { class: 'pbadge bad' }, '⚑ Evaluators disagree: ' + r.flagged.join(', ')) : null,
+        RS.day !== 'all' ? h('span', { class: 'pbadge' }, (ev.sessions.find(d => d.id === RS.day) || {}).name + ' only') : null),
+      sect('Skills'),
+      h('div', { class: 'stack', style: 'gap:8px' }, ks.map(k => {
+        const s = r.skills[k.id];
+        return h('div', { class: 'bar-row' + (strong.includes(k.id) ? ' strong' : weak.includes(k.id) ? ' weak' : '') },
+          h('div', { class: 'row' }, h('div', { class: 'grow sname' }, k.name, k.w !== 1 ? h('span', { class: 'pmeta' }, ' ' + wLabel(k.w)) : null, strong.includes(k.id) ? h('span', { class: 'tag' }, 'Strength') : weak.includes(k.id) ? h('span', { class: 'tag' }, 'Work on') : null),
+            h('b', { class: 'num' }, s ? (f.scale === 'pcm' ? pcmLabel(s.v) : fmtV(s.v)) : '–')),
+          h('div', { class: 'bar' }, h('i', { style: 'width:' + (s ? Math.max(3, Math.min(100, s.pct)) : 0) + '%' })),
+          s && s.days ? h('div', { class: 'pmeta' }, ev.sessions.filter(d => res.dayIds.includes(d.id)).map((d, j) => d.name + ': ' + (s.days[j] == null ? '–' : f.scale === 'pcm' ? pcmLabel(s.days[j]) : fmtV(s.days[j]))).join(' · ')) : null,
+          s && s.n > 1 ? h('div', { class: 'pmeta' }, plural(s.n, 'evaluator', 'evaluators') + (s.spread ? ' · spread ' + fmtV(s.spread) : '')) : null);
+      })),
+      f.tests.length ? [sect('Measured tests'), h('div', { class: 'list', style: 'gap:6px' }, f.tests.map(t => h('div', { class: 'krow' },
+        h('div', { class: 'knm' }, h('div', { class: 'pnm' }, t.name), h('div', { class: 'pmeta' }, r.testRank && r.testRank[t.id] ? '#' + r.testRank[t.id].at + ' of ' + r.testRank[t.id].of + (t.better === 'low' ? ' · lower is better' : '') : 'not measured')),
+        h('b', { class: 'num', style: 'font-size:18px' }, r.tests[t.id] == null ? '–' : fmtV(r.tests[t.id], 2) + ' ' + (t.unit || '')))))] : null,
+      sect('Notes', h('span', { class: 'cnt' }, notes.length || '')),
+      notes.length ? h('div', { class: 'stack', style: 'gap:6px' }, notes.map(n => h('div', { class: 'nitem' }, h('div', { class: 'pmeta' }, [n.who, n.day, n.skill].filter(Boolean).join(' · ')), h('div', null, n.text)))) : h('p', { class: 'note' }, 'No notes.'),
+      h('div', { class: 'toprow', style: 'margin-top:18px' },
+        prev ? h('button', { class: 'btn', onclick: () => goReplace('r', ev.id, prev.p.id) }, icon('back'), '#' + (prev.p.num || '–')) : null,
+        h('button', { class: 'btn', onclick: () => window.print() }, icon('file'), 'Print'),
+        next ? h('button', { class: 'btn', onclick: () => goReplace('r', ev.id, next.p.id) }, '#' + (next.p.num || '–'), icon('chev')) : null))];
+}
+
+/* ---------------- spreadsheet export (same order and filters as on screen) ---------------- */
+function resultsCsv(ev) {
+  const { res, rows, val } = resultRows(ev), f = ev.form, ks = allSkills(ev), gname = id => (ev.groups.find(g => g.id === id) || {}).name || '';
+  const q = v => { const s = v == null ? '' : String(v); return /[",\n\r]/.test(s) || /^[=+\-@]/.test(s) ? '"' + s.replace(/"/g, '""').replace(/^([=+\-@])/, "'$1") + '"' : s; };
+  const head = ['Rank', 'Number', 'Name', cap(W.position), 'Group', 'Division', 'Overall', 'Overall %', 'Evaluators', 'Disagree on'].concat(ks.map(k => k.name), f.tests.map(t => t.name + (t.unit ? ' (' + t.unit + ')' : '')), ['Notes']);
+  const lines = [head.map(q).join(',')];
+  rows.forEach((r, i) => {
+    const notes = notesFor(ev, r.p.id).map(n => (n.skill ? n.skill + ': ' : '') + n.text).join(' | ');
+    lines.push([val(r) == null ? '' : i + 1, r.p.num, r.p.name, r.p.pos, gname(r.p.group), r.p.div, r.overall == null ? '' : fmtV(r.overall, 2), r.pct == null ? '' : Math.round(r.pct), r.nEval, r.flagged.join('; ')]
+      .concat(ks.map(k => r.skills[k.id] ? fmtV(r.skills[k.id].v, 2) : ''), f.tests.map(t => r.tests[t.id] == null ? '' : r.tests[t.id]), [notes]).map(q).join(','));
+  });
+  return '﻿' + lines.join('\r\n');
+}
+
+/* ---------------- print: a clean table of the current list ---------------- */
+function printResults(ev) {
+  const { res, rows, val } = resultRows(ev), f = ev.form, ks = allSkills(ev), gname = id => (ev.groups.find(g => g.id === id) || {}).name || '';
+  const line = ev.line || 0;
+  const tbl = h('table', { class: 'ptbl' },
+    h('thead', null, h('tr', null, ['#', 'No.', 'Name', cap(W.position), 'Group', 'Overall'].concat(ks.map(k => k.name), f.tests.map(t => t.name)).map(x => h('th', null, x)))),
+    h('tbody', null, rows.map((r, i) => h('tr', { class: line && i === line - 1 ? 'lineafter' : null },
+      [val(r) == null ? '' : i + 1, r.p.num, r.p.name + (r.flagged.length ? ' ⚑' : ''), r.p.pos, gname(r.p.group), r.pct == null ? '' : fmtV(r.overall) + ' (' + Math.round(r.pct) + '%)']
+        .concat(ks.map(k => r.skills[k.id] ? (f.scale === 'pcm' ? pcmLabel(r.skills[k.id].v) : fmtV(r.skills[k.id].v)) : ''), f.tests.map(t => r.tests[t.id] == null ? '' : fmtV(r.tests[t.id], 2)))
+        .map(x => h('td', null, x))))));
+  const box = h('div', { class: 'printonly' }, h('h1', null, ev.name + ' · results'), h('p', null, [sportById(ev.sport).name, RS.day === 'all' ? (ev.sessions.length > 1 ? 'all days' : null) : (ev.sessions.find(d => d.id === RS.day) || {}).name, 'printed ' + new Date().toLocaleDateString()].filter(Boolean).join(' · ')), tbl);
+  document.querySelectorAll('.printonly').forEach(x => x.remove()); document.body.append(box);
+  document.body.classList.add('printing'); setTimeout(() => { window.print(); setTimeout(() => { document.body.classList.remove('printing'); box.remove(); }, 500); }, 50);
+}

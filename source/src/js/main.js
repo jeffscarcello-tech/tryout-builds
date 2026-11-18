@@ -40,6 +40,7 @@ function render() {
   let view;
   if (R.name === 'e') view = viewEvent(R.args[0], R.args[1]);
   else if (R.name === 's') view = R.args[3] ? viewScorePlayer(R.args[0], R.args[1], R.args[2], R.args[3]) : viewScoreList(R.args[0], R.args[1], R.args[2]);
+  else if (R.name === 'r') view = viewPlayerCard(R.args[0], R.args[1]);
   else if (R.name === 'templates') view = viewTemplates();
   else view = viewHome();
   app.dataset.view = R.name;

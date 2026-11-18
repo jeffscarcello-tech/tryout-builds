@@ -118,15 +118,39 @@ def run(p, name, vp, mobile):
     pg.locator('.srow:has(.sbtns)').nth(0).locator('.sb').nth(2).click(); assert pg.locator('.sb.on').count() == 1 and pg.locator('.sb.carried').count() == 9
     shot('11-day2')
     pg.goto(URL + '#/'); pg.locator('.evcard', has_text='U15 girls').click(); pg.wait_for_selector('.pbadge.full')
+    # results tab
+    pg.locator('.seg button', has_text='Results').click(); pg.wait_for_selector('.rrow')
+    assert pg.locator('.rrow').count() == 6, pg.locator('.rrow').count()
+    first = pg.locator('.rrow').first; assert 'Jordan P' in first.inner_text() and pg.locator('.rrow.none').count() >= 4, 'scored players first'
+    pg.locator('select[aria-label="Sort by"]').select_option(label='Passing'); time.sleep(0.2); assert 'Jordan P' in pg.locator('.rrow').first.inner_text()
+    pg.locator('select[aria-label="Sort by"]').select_option(label='Overall')
+    pg.click('button[aria-label="More spots"]'); time.sleep(0.2); assert pg.locator('b.num').first.inner_text() == '1'; assert pg.locator('.tline').count() == 0, 'no line when everyone scored fits'
+    if pg.locator('select[aria-label="All groups"]').count(): pg.locator('select[aria-label="All groups"]').select_option(label='Group B'); time.sleep(0.2); assert 'Jordan P' not in pg.inner_text('.list'); pg.locator('select[aria-label="All groups"]').select_option(value='')
+    with pg.expect_download() as dl: pg.locator('button', has_text='Spreadsheet').click()
+    csv = open(dl.value.path(), encoding='utf-8-sig').read(); assert csv.startswith('Rank,Number,Name') and 'Jordan P' in csv and 'Quick hands' in csv, csv[:300]
+    shot('13-results')
+    pg.locator('.rrow', has_text='Jordan P').click(); pg.wait_for_selector('.rcard')
+    body = pg.inner_text('main'); assert '#1' in body and 'overall' in body.lower() and 'Quick hands' in body and 'Great hands' in body, body[:400]
+    assert pg.locator('.bar-row').count() == 10 and pg.locator('.bar-row.strong').count() == 2 and pg.locator('.bar-row.weak').count() == 2
+    shot('14-card')
+    pg.click('button[aria-label="Back"]'); pg.wait_for_selector('.rrow')
+    # scale change keeps scores (convert)
+    pg.locator('.seg button', has_text='Form').click(); pg.wait_for_selector('text=Measured tests')
+    pg.locator('.seg button', has_text='1 to 5').click(); pg.locator('.sheet').last.locator('button', has_text='Convert and change').click(); time.sleep(0.3)
+    ev = [e for e in json.loads(pg.evaluate("localStorage.getItem('rp.v1')"))['events'] if e['name'] == 'U15 girls tryouts'][0]
+    assert ev['form']['scale'] == '5'; vals = [r['v'] for k, r in ev['scores'].items() if r['v'] is not None and k.split('|')[2] in [x['id'] for x in ev['form']['skills']]]
+    assert vals and max(vals) <= 5 and min(vals) >= 1, vals
+    pg.locator('.seg button', has_text='1 to 10').click(); pg.locator('.sheet').last.locator('button', has_text='Keep the old scale').click(); time.sleep(0.2)
+    assert pg.locator('.seg button.on', has_text='1 to 5').count() == 1, 'keep the old scale = no change'
     pg.locator('.seg button', has_text='Form').click(); pg.wait_for_selector('text=Save as my template')
     # save as template, then new event from it
     pg.click('text=Save as my template'); sheet().locator('input.inp').fill('My VB form'); sheet().locator('button', has_text='Save').last.click(); time.sleep(0.3)
     # reload: everything still there
-    pg.reload(); pg.wait_for_selector('text=Serve receive'); assert pg.locator('.seg button.on', has_text='1 to 10').count() == 1, 'scale kept'
+    pg.reload(); pg.wait_for_selector('text=Serve receive'); assert pg.locator('.seg button.on', has_text='1 to 5').count() == 1, 'scale kept'
     pg.goto(URL + '#/'); pg.wait_for_selector('text=U15 girls tryouts'); assert '6 players' in pg.inner_text('body'), pg.inner_text('body')
     pg.click('text=New event'); sheet().locator('button.chip', has_text='My VB form').click(); sheet().locator('input.inp').fill('Spring camp')
     sheet().locator('text=Create event').click(); pg.wait_for_selector('text=Import list')
-    pg.locator('.seg button', has_text='Form').click(); pg.wait_for_selector('text=Serve receive'); assert pg.locator('.seg button.on', has_text='1 to 10').count() == 1, 'template scale'
+    pg.locator('.seg button', has_text='Form').click(); pg.wait_for_selector('text=Serve receive'); assert pg.locator('.seg button.on', has_text='1 to 5').count() == 1, 'template scale'
     # hockey: goalie list
     pg.goto(URL + '#/'); pg.click('text=New event'); sheet().locator('button.chip', has_text='Hockey').click(); sheet().locator('text=Create event').click()
     pg.locator('.seg button', has_text='Form').click(); pg.wait_for_selector('text=Goalie skills')

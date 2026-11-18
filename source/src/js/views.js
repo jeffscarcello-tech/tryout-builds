@@ -95,14 +95,14 @@ function newEventSheet() {
 function viewEvent(id, tab) {
   const ev = eventById(id);
   if (!ev) return [topBar('Not found', 'home'), h('main', { class: 'page' }, h('div', { class: 'empty' }, 'That event is not on this phone.'))];
-  W = wordsOf(ev); tab = ['players', 'groups', 'form'].includes(tab) ? tab : 'players';
+  W = wordsOf(ev); tab = ['players', 'groups', 'form', 'results'].includes(tab) ? tab : 'players';
   const sp = sportById(ev.sport);
-  const tabs = [['players', cap(W.players)], ['groups', 'Groups'], ['form', 'Form']];
+  const tabs = [['players', cap(W.players)], ['groups', 'Groups'], ['form', 'Form'], ['results', 'Results']];
   return [topBar(ev.name, 'home', h('button', { class: 'iconbtn', 'aria-label': 'Event options', onclick: () => eventMenu(ev) }, icon('more'))),
     h('div', { class: 'subtabs' }, h('div', { class: 'seg' }, tabs.map(([k, l]) => h('button', { class: tab === k ? 'on' : '', onclick: () => go('e', ev.id, k) }, l)))),
     h('main', { class: 'page' },
       h('div', { class: 'pmeta', style: 'margin:-4px 0 12px' }, sp.name + ' · created ' + fmtDate(ev.created)),
-      tab === 'players' ? playersTab(ev) : tab === 'groups' ? groupsTab(ev) : formTab(ev))];
+      tab === 'players' ? playersTab(ev) : tab === 'groups' ? groupsTab(ev) : tab === 'results' ? resultsTab(ev) : formTab(ev))];
 }
 
 function eventMenu(ev) {
@@ -301,7 +301,7 @@ function formTab(ev) {
   const f = ev.form, sp = sportById(ev.sport);
   return [
     h('p', { class: 'note' }, 'This is what evaluators score. Changes here apply to this event only. Tap a skill to rename it, the ×1 button to weight it, and the arrows to reorder.'),
-    sect('Scale'), h('div', { class: 'seg' }, SCALES.map(([k, l]) => h('button', { class: f.scale === k ? 'on' : '', onclick: () => { f.scale = k; touch(ev); render(); } }, l))),
+    sect('Scale'), h('div', { class: 'seg' }, SCALES.map(([k, l]) => h('button', { class: f.scale === k ? 'on' : '', onclick: () => changeScale(ev, k) }, l))),
     skillEditor(ev, f.skills, f.alt ? 'Skills (everyone except ' + f.alt.pos.toLowerCase() + 's)' : 'Skills'),
     f.alt ? [skillEditor(ev, f.alt.skills, f.alt.pos + ' skills'),
       h('button', { class: 'btn sm ghost', style: 'margin-top:8px', onclick: async () => { if (await confirmBox({ title: 'Use one skill list for everyone?', message: 'The ' + f.alt.pos.toLowerCase() + ' list is removed.', ok: 'Use one list' })) { f.alt = null; touch(ev); render(); } } }, 'Use one list for everyone')] : null,
@@ -327,6 +327,17 @@ function formTab(ev) {
         const d = f.divisions; ev.form = formFromSport(ev.sport); ev.form.divisions = d; touch(ev); render();
       } }, 'Reset to the ' + sp.name + ' starting list') : null)
   ];
+}
+/* changing the scale after scoring: offer to convert the scores so each keeps its relative place */
+async function changeScale(ev, to) {
+  const f = ev.form, from = f.scale; if (from === to) return;
+  if (hasSkillScores(ev)) {
+    const ex = to === 'pcm' ? 'top scores become +, middle scores ✓, the lowest −' : from === 'pcm' ? '+ becomes ' + scaleMax(to) + ', ✓ becomes ' + Math.round(1 + (scaleMax(to) - 1) / 2) : '4 of ' + scaleMax(from) + ' becomes ' + Math.round(1 + 3 * (scaleMax(to) - 1) / (scaleMax(from) - 1)) + ' of ' + scaleMax(to);
+    const ok = await confirmBox({ title: 'Convert the scores already entered?', message: 'Scores keep about the same place on the new scale (for example ' + ex + '). They are rounded, so changing back may not give the exact same numbers.', ok: 'Convert and change', cancel: 'Keep the old scale' });
+    if (!ok) return;
+    const n = convertScale(ev, from, to); toast(plural(n, 'score', 'scores') + ' converted.');
+  }
+  f.scale = to; touch(ev); render();
 }
 function testSheet(ev, t) {
   const isNew = !t, d = Object.assign({ name: '', unit: 's', better: 'low' }, t || {});
