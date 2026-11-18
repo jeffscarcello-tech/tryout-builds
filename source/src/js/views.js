@@ -30,7 +30,7 @@ function promptBox({ title, value = '', placeholder = '', ok = 'Save', max = 40,
     let done = false; const fin = v => { if (!done) { done = true; resolve(v); } };
     openSheet((s, api) => {
       const inp = h('input', { class: 'inp', value, placeholder, maxlength: String(max), enterkeyhint: 'done' });
-      const go1 = () => { const v = clean(inp.value, max); fin(v || null); api.close(); };
+      const go1 = () => { fin(clean(inp.value, max)); api.close(); };   // '' = saved empty, null = cancelled
       inp.addEventListener('keydown', e => { if (e.key === 'Enter') go1(); });
       s.append(h('h2', null, title), inp, note ? h('p', { class: 'note', style: 'margin-top:8px' }, note) : null,
         h('div', { class: 'acts' }, h('button', { class: 'btn', onclick: () => { fin(null); api.close(); } }, 'Cancel'), h('button', { class: 'btn primary', onclick: go1 }, ok)));
@@ -310,6 +310,7 @@ function formTab(ev) {
       h('button', { class: 'mini', 'aria-label': 'Move up', disabled: i === 0, onclick: () => { move(f.tests, i, -1); touch(ev); render(); } }, icon('up')),
       h('button', { class: 'mini', 'aria-label': 'Move down', disabled: i === f.tests.length - 1, onclick: () => { move(f.tests, i, 1); touch(ev); render(); } }, icon('down'))))) : h('p', { class: 'note' }, 'None. Add a time, a count or a distance, like a 40 m sprint.'),
     h('button', { class: 'chip add', style: 'margin-top:10px', onclick: () => testSheet(ev, null) }, icon('plus'), 'Add test'),
+    daysEditor(ev),
     sect('More'),
     h('div', { class: 'stack' },
       h('button', { class: 'btn block', onclick: () => saveTemplate(ev) }, icon('clip'), 'Save as my template'),

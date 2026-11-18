@@ -9,7 +9,7 @@ const ctx = { console, JSON, Date, Math, Map, Set, String, Object, Array, parseI
   localStorage: { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } },
   window: { addEventListener() { } }, document: { addEventListener() { }, hidden: false }, toast() { } };
 vm.createContext(ctx);
-vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers };', ctx);
+vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays };', ctx);
 const T = ctx.__t;
 let n = 0; const ok = m => { n++; console.log('ok', n, m); };
 
@@ -46,17 +46,25 @@ const back = T.exportData(); T.S.events.length = 0; let res = T.importData(back)
 res = T.importData(back); assert.equal(res.added, 0); ok('restoring twice adds nothing');
 assert.throws(() => T.importData('{"app":"shotpulse"}')); assert.throws(() => T.importData('nope')); ok('wrong file refused');
 // scoring
-const hk = T.newEvent('Hockey camp', 'hockey');
+const hk = T.newEvent('Hockey camp', 'hockey'); T.ensureDays(hk); const D1 = hk.sessions[0].id;
 hk.players.push({ id: 'p1', num: '9', name: 'A', pos: 'Forward', group: 'g1' }, { id: 'p2', num: '30', name: 'B', pos: 'Goalie', group: 'g1' }, { id: 'p3', num: '4', name: 'C', pos: '', group: 'g2' });
 assert.equal(T.skillsFor(hk, hk.players[1]), hk.form.alt.skills); assert.equal(T.skillsFor(hk, hk.players[0]), hk.form.skills); ok('goalie gets the goalie skill list');
 assert.deepEqual(T.scaleValues('5').map(x => x[0]), [1, 2, 3, 4, 5]); assert.equal(T.scaleValues('10').length, 10); assert.deepEqual(T.scaleValues('pcm').map(x => x[1]), ['+', '✓', '−']); ok('scales');
-const k0 = hk.form.skills[0].id; T.setScore(hk, 'p1', k0, 4); assert.equal(T.getScore(hk, 'p1', k0), 4);
-const id1 = hk.scores[T.me().id + '|p1|' + k0].id; T.setScore(hk, 'p1', k0, 5); assert.equal(T.getScore(hk, 'p1', k0), 5); assert.notEqual(hk.scores[T.me().id + '|p1|' + k0].id, id1); ok('changing a score makes a new record id (for sync later)');
-T.setScore(hk, 'p1', k0, null); assert.equal(T.getScore(hk, 'p1', k0), null); ok('clearing a score');
-hk.form.skills.forEach((k, i) => T.setScore(hk, 'p1', k.id, 3)); let pr = T.progressOf(hk, hk.players[0]); assert.equal(pr.done, 7); assert.equal(pr.all, 8); ok('progress counts skills and tests (7 of 8)');
-T.setScore(hk, 'p1', hk.form.tests[0].id, 41.25); pr = T.progressOf(hk, hk.players[0]); assert.equal(pr.done, pr.all); ok('test value fills the last one');
-assert.equal(T.getScore(hk, 'p1', k0, 'someone-else'), null); ok('scores belong to one evaluator');
-T.setNote(hk, 'p1', 'Strong <b>skater</b>'); assert.equal(T.getNote(hk, 'p1'), 'Strong bskater/b'); ok('notes saved and cleaned');
+const k0 = hk.form.skills[0].id; T.setScore(hk, 'p1', k0, D1, 4); assert.equal(T.getScore(hk, 'p1', k0, D1), 4);
+const id1 = hk.scores[T.me().id + '|p1|' + k0 + '|' + D1].id; T.setScore(hk, 'p1', k0, D1, 5); assert.equal(T.getScore(hk, 'p1', k0, D1), 5); assert.notEqual(hk.scores[T.me().id + '|p1|' + k0 + '|' + D1].id, id1); ok('changing a score makes a new record id (for sync later)');
+T.setScore(hk, 'p1', k0, D1, null); assert.equal(T.getScore(hk, 'p1', k0, D1), null); ok('clearing a score');
+hk.form.skills.forEach(k => T.setScore(hk, 'p1', k.id, D1, 3)); let pr = T.progressOf(hk, hk.players[0], D1); assert.equal(pr.done, 7); assert.equal(pr.all, 8); ok('progress counts skills and tests (7 of 8)');
+T.setScore(hk, 'p1', hk.form.tests[0].id, D1, 41.25); pr = T.progressOf(hk, hk.players[0], D1); assert.equal(pr.done, pr.all); ok('test value fills the last one');
+assert.equal(T.getScore(hk, 'p1', k0, D1, 'someone-else'), null); ok('scores belong to one evaluator');
+T.setNote(hk, 'p1', '', D1, 'Strong <b>skater</b>'); assert.equal(T.getNote(hk, 'p1', '', D1), 'Strong bskater/b'); T.setNote(hk, 'p1', k0, D1, 'edges weak'); assert.equal(T.getNote(hk, 'p1', k0, D1), 'edges weak'); assert.equal(T.getNote(hk, 'p1', hk.form.skills[1].id, D1), ''); ok('overall note and per-skill note kept apart');
 assert.deepEqual(T.groupPlayers(hk, 'g1').map(p => p.num), ['9', '30']); assert.equal(T.groupPlayers(hk, 'all').length, 3); ok('group filter for scoring');
+// days
+hk.sessions.push({ id: 'd2', name: 'Day 2' });
+hk.form.combine = 'avg'; assert.equal(T.shownScore(hk, 'p1', k0, 'd2').v, null); assert.equal(T.progressOf(hk, hk.players[0], 'd2').done, 0); ok('average/total: day 2 starts empty');
+hk.form.combine = 'carry'; let sh = T.shownScore(hk, 'p1', k0, 'd2'); assert.equal(sh.v, 3); assert.equal(sh.carried.name, 'Day 1'); assert.equal(T.progressOf(hk, hk.players[0], 'd2').done, 8); ok('carry forward: day 2 starts with day 1 scores');
+T.setScore(hk, 'p1', k0, 'd2', 5); sh = T.shownScore(hk, 'p1', k0, 'd2'); assert.equal(sh.v, 5); assert.equal(sh.carried, null); assert.equal(T.getScore(hk, 'p1', k0, D1), 3); ok('carry forward: a new tap replaces it for day 2, day 1 kept');
+// old (t3) scores move to Day 1
+const old = { id: 'eold', name: 'Old', sport: 'volleyball', form: T.formFromSport('volleyball'), groups: [], players: [], scores: { 'v1|p1|k1': { id: 'r1', v: 4, t: 1 } }, notes: { 'v1|p1': { id: 'r2', v: 'hi', t: 1 } } };
+delete old.form.combine; T.ensureDays(old); assert.equal(old.sessions.length, 1); assert.equal(old.scores['v1|p1|k1|d1'].v, 4); assert.equal(old.notes['v1|p1||d1'].v, 'hi'); assert.equal(old.form.combine, 'avg'); ok('scores from build t3 move to Day 1');
 T.save(true); assert.ok(JSON.parse(mem['rp.v1']).events.find(e => e.id === hk.id).scores); ok('scores stored on the phone');
 console.log('ALL', n, 'UNIT TESTS PASSED');

@@ -64,5 +64,13 @@ textarea.inp{min-height:180px;padding:12px 14px;line-height:1.45;font-family:inh
 .sb{min-height:50px;border-radius:12px;border:1px solid var(--line2);background:var(--panel2);font-size:20px;font-weight:900;color:var(--text)}
 .sb.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .sb:active{filter:brightness(1.2)}
-.pbadge{font-size:11px;font-weight:800;padding:3px 8px;border-radius:999px;background:rgba(255,210,63,.14);color:var(--gold);flex:none}
+.pbadge{position:static;transform:none;box-shadow:none;letter-spacing:0;font-size:11px;font-weight:800;padding:3px 8px;border-radius:999px;background:rgba(255,210,63,.14);color:var(--gold);flex:none}
 .pbadge.full{background:rgba(55,208,131,.15);color:var(--good)}
+.matchbox{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.matchbox:empty{display:none}
+.shead{display:flex;align-items:center;gap:8px}
+.nbtn{width:32px;height:32px;border-radius:9px;border:1px dashed var(--line2);background:transparent;color:var(--muted);display:grid;place-items:center;flex:none}
+.nbtn.on{border-style:solid;border-color:var(--gold);color:var(--gold)}
+.snote{font-size:13px;color:var(--gold);line-height:1.35;margin-top:-2px}
+.carry{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.02em}
+.sb.carried{background:rgba(255,138,31,.16);border-color:rgba(255,138,31,.55);color:var(--text)}

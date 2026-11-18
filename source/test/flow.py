@@ -64,8 +64,11 @@ def run(p, name, vp, mobile):
     pg.locator('.seg button', has_text='Players').click(); pg.wait_for_selector('text=Start scoring'); pg.click('text=Start scoring')
     sheet().locator('input.inp').fill('Coach J'); sheet().locator('button', has_text='Start scoring').click()
     sheet().locator('.item', has_text='Group A').click(); pg.wait_for_selector('.keypad')
+    assert pg.locator('.prow2').count() == 0, 'number mode shows only the keypad'
     shot('8-numbers')
     pg.locator('.key', has_text='9').click(); pg.wait_for_selector('.numshow.bad')   # nobody is #9
+    pg.locator('.key', has_text='C').click(); pg.locator('.key', has_text='1').click()
+    assert pg.locator('.matchbox .prow2').count() == 0 and not pg.locator('.numshow.bad').count(), '1 is a prefix of 12 and 14'
     pg.locator('.key', has_text='C').click(); pg.locator('.key', has_text='7').click()
     pg.wait_for_selector('.srow'); assert 'Jordan P' in pg.inner_text('header')
     rows = pg.locator('.srow:has(.sbtns)'); nrows = rows.count(); assert nrows == 10, nrows
@@ -73,15 +76,35 @@ def run(p, name, vp, mobile):
     assert pg.locator('.sb.on').count() == nrows
     rows.nth(0).locator('.sb').nth(0).click(); assert pg.locator('.sb.on').count() == nrows - 1, 'tap again clears'
     rows.nth(0).locator('.sb').nth(6).click()
+    # note beside a skill
+    rows.nth(1).locator('.nbtn').click(); sheet().locator('input.inp').fill('Quick hands'); sheet().locator('button', has_text='Save').click()
+    pg.wait_for_selector('.snote'); assert pg.locator('.snote').inner_text() == 'Quick hands'
+    rows.nth(1).locator('.nbtn').click(); sheet().locator('button', has_text='Cancel').click(); time.sleep(0.2); assert pg.locator('.snote').count() == 1, 'cancel keeps the note'
     tests = pg.locator('.srow input.inp')
     for i in range(tests.count()): tests.nth(i).fill(str(40 + i)); tests.nth(i).press('Tab'); time.sleep(0.1)
     pg.locator('textarea.inp').fill('Great hands'); pg.locator('.sname').first.click()
     assert '13/13' in pg.inner_text('header'), pg.inner_text('header')
     shot('9-score')
     pg.locator('button', has_text='Next: #').click(); pg.wait_for_selector('.srow'); assert 'Jordan P' not in pg.inner_text('header')
-    pg.click('text=All numbers'); pg.wait_for_selector('.ntile.full'); assert pg.locator('.ntile.full').count() == 1
-    pg.reload(); pg.wait_for_selector('.ntile.full')
-    pg.locator('.ntile', has_text='7').click(); assert pg.locator('textarea.inp').input_value() == 'Great hands'
+    pg.locator('button', has_text='All players').click(); pg.wait_for_selector('.keypad')
+    # by name: the full list only
+    pg.locator('.seg button', has_text='By name').click(); pg.wait_for_selector('.prow2'); assert pg.locator('.keypad').count() == 0
+    names = [x.inner_text() for x in pg.locator('.prow2 .pnm').all()]; assert names == sorted(names) and len(names) == 3, names
+    assert pg.locator('.prow2', has_text='Jordan P').locator('.pbadge.full').count() == 1
+    shot('10-byname')
+    pg.reload(); pg.wait_for_selector('.prow2')   # remembers By name
+    pg.locator('.prow2', has_text='Jordan P').click(); assert pg.locator('textarea.inp').input_value() == 'Great hands' and pg.locator('.snote').count() == 1
+    # days: add Day 2, carry scores forward
+    pg.goto(URL + '#/'); pg.locator('.evcard', has_text='U15 girls').click(); pg.locator('.seg button', has_text='Form').click(); pg.wait_for_selector('text=Add day')
+    pg.click('text=Add day'); pg.wait_for_selector('text=How the days count'); pg.locator('.prow', has_text='Carry scores forward').click()
+    pg.locator('.seg button', has_text='Players').click(); pg.click('text=Start scoring')
+    sheet().locator('button.chip', has_text='Day 2').click(); sheet().locator('.item', has_text='Group A').click(); pg.wait_for_selector('.prow2')
+    assert 'Day 2' in pg.inner_text('header')
+    assert pg.locator('.prow2', has_text='Jordan P').locator('.pbadge.full').count() == 1, 'carried scores count as done'
+    pg.locator('.prow2', has_text='Jordan P').click(); pg.wait_for_selector('.srow')
+    assert pg.locator('.sb.carried').count() == 10 and pg.locator('.sb.on').count() == 0, 'day 1 scores carried, faded'
+    pg.locator('.srow:has(.sbtns)').nth(0).locator('.sb').nth(2).click(); assert pg.locator('.sb.on').count() == 1 and pg.locator('.sb.carried').count() == 9
+    shot('11-day2')
     pg.goto(URL + '#/'); pg.locator('.evcard', has_text='U15 girls').click(); pg.wait_for_selector('.pbadge.full')
     pg.locator('.seg button', has_text='Form').click(); pg.wait_for_selector('text=Save as my template')
     # save as template, then new event from it

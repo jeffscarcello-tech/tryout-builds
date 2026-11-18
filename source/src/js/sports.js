@@ -55,7 +55,8 @@ function formFromSport(id) {
     alt: s.alt ? { pos: s.alt.pos, skills: s.alt.skills.map(n => ({ id: uid('k'), name: n, w: 1 })) } : null,
     positions: s.positions.slice(),
     tests: (s.tests || []).map(([name, unit, better]) => ({ id: uid('t'), name, unit, better })),
-    divisions: []
+    divisions: [],
+    combine: 'avg'
   };
 }
 /* a copy of a form with fresh ids (for templates, so two events never share ids by accident) */
