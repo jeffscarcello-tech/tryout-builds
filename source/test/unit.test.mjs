@@ -3,13 +3,13 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert';  // loose deepEqual: arrays made inside the vm have a different prototype
 
-const src = ['sports.js', 'store.js', 'score.js', 'results.js'].map(f => readFileSync(new URL('../src/js/' + f, import.meta.url), 'utf8')).join('\n');
+const src = ['sports.js', 'store.js', 'score.js', 'results.js', 'pdf.js'].map(f => readFileSync(new URL('../src/js/' + f, import.meta.url), 'utf8')).join('\n');
 const mem = {};
 const ctx = { console, JSON, Date, Math, Map, Set, String, Object, Array, parseInt, setTimeout, clearTimeout,
   localStorage: { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } },
   window: { addEventListener() { } }, document: { addEventListener() { }, hidden: false }, toast() { } };
 vm.createContext(ctx);
-vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind, computeResults, notesFor, convertScale, hasSkillScores, scaleMax, skillApplies, skillChoices, scaleLo, scaleHi, useSlider, scaleLabel };', ctx);
+vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind, computeResults, notesFor, convertScale, hasSkillScores, scaleMax, skillApplies, skillChoices, scaleLo, scaleHi, useSlider, scaleLabel, makePdf, pdfText, wrapText };', ctx);
 const T = ctx.__t;
 let n = 0; const ok = m => { n++; console.log('ok', n, m); };
 
@@ -121,4 +121,14 @@ T.convertScale(C1, '5', '100', 1, 0); assert.deepEqual([C1.scores['e|p|' + kb + 
 T.convertScale(C1, '100', '5', 0, 1); assert.deepEqual([C1.scores['e|p|' + kb + '|d1'].v, C1.scores['e|q|' + kb + '|d1'].v], [4, 1]); ok('and back to 1 to 5');
 C1.form.scale = '100'; C1.form.scaleMin = 0; C1.players = [{ id: 'p', num: '1', name: 'P' }]; C1.scores = { ['e|p|' + kb + '|d1']: { id: '1', v: 73, t: 1 } };
 let CR = T.computeResults(C1, 'all'); assert.equal(Math.round(CR.rows[0].pct), 73); assert.equal(CR.skMax, 100); ok('results on a 0 to 100 scale');
+// PDF
+const rep = { title: 'U15 tryouts · results', subtitle: 'Volleyball', landscape: true, blocks: [{ kv: [['Overall', '4.2 out of 5']] }, { h: 'Skills' }, { table: { head: ['#', 'Name', 'Score'], align: ['r', 'l', 'r'], line: 2, rows: Array.from({ length: 90 }, (_, i) => [String(i + 1), 'Player (' + i + ') ✓ − ⚑ ½ é', '4.5']) } }, { p: 'A long note '.repeat(40) }] };
+const pdf = T.makePdf(rep); const txt = Array.from(pdf, b => String.fromCharCode(b)).join('');
+assert.ok(txt.startsWith('%PDF-1.4') && txt.trimEnd().endsWith('%%EOF')); ok('PDF has a header and end marker');
+const xr = +txt.match(/startxref\n(\d+)/)[1]; assert.equal(txt.slice(xr, xr + 4), 'xref');
+const offs = txt.slice(xr).split('\n').slice(3).filter(l => / 00000 n $/.test(l)).map(l => +l.slice(0, 10)); offs.forEach((o, i) => assert.ok(txt.slice(o).startsWith((i + 1) + ' 0 obj'), 'obj ' + (i + 1))); ok('PDF cross-reference table points at every object');
+assert.ok(/\/Count [3-9]/.test(txt)); ok('90 rows spill onto more pages');
+assert.equal(T.pdfText('ok ✓ − ⚑'), 'ok ok - (!)'); assert.ok(!/[^\x00-\xff]/.test(txt)); ok('text made safe for the PDF font');
+assert.ok(T.wrapText('word '.repeat(60), 10, 200).length > 3); ok('long text wraps');
+require_fs: { const fs = await import('node:fs'); fs.writeFileSync('/tmp/rp-test.pdf', pdf); }
 console.log('ALL', n, 'UNIT TESTS PASSED');

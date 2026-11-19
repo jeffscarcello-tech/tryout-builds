@@ -41,14 +41,17 @@ function render() {
   if (R.name === 'e') view = viewEvent(R.args[0], R.args[1]);
   else if (R.name === 's') view = R.args[3] ? viewScorePlayer(R.args[0], R.args[1], R.args[2], R.args[3]) : viewScoreList(R.args[0], R.args[1], R.args[2]);
   else if (R.name === 'r') view = viewPlayerCard(R.args[0], R.args[1]);
+  else if (R.name === 'p') view = viewPrint(R.args[0], R.args[1], R.args[2]);
+  else if (R.name === 'c') view = viewCompare(R.args[0], R.args[1]);
+  else if (R.name === 'm') view = viewMissing(R.args[0]);
   else if (R.name === 'templates') view = viewTemplates();
   else view = viewHome();
   app.dataset.view = R.name;
   /* browser tab and home-screen switcher show the event name with the app name */
-  const evNow = (R.name === 'e' || R.name === 's' || R.name === 'r') ? eventById(R.args[0]) : null;
+  const evNow = ['e', 's', 'r', 'p', 'c', 'm'].includes(R.name) ? eventById(R.args[0]) : null;
   document.title = evNow ? evNow.name + ' · RosterPulse' : 'RosterPulse';
   /* every page but home ends with the RosterPulse mark */
-  if (R.name !== 'home' && R.name) { const v = [].concat(view).flat(Infinity).filter(Boolean); const m = v.find(x => x.tagName === 'MAIN'); if (m) m.append(brandFoot()); }
+  if (R.name !== 'home' && R.name !== 'p' && R.name) { const v = [].concat(view).flat(Infinity).filter(Boolean); const m = v.find(x => x.tagName === 'MAIN'); if (m) m.append(brandFoot()); }
   app.replaceChildren(...[].concat(view).flat(Infinity).filter(Boolean));
   if (same) window.scrollTo(0, y); else window.scrollTo(0, 0);
   lastRoute = key;

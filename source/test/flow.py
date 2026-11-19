@@ -164,10 +164,33 @@ def run(p, name, vp, mobile):
     with pg.expect_download() as dl: pg.locator('button', has_text='Spreadsheet').click()
     csv = open(dl.value.path(), encoding='utf-8-sig').read(); assert csv.startswith('Rank,Number,Name') and 'Jordan P' in csv and 'Quick hands' in csv, csv[:300]
     shot('13-results')
+    # compare 2 players
+    pg.locator('button', has_text='Compare').first.click(); sheet().locator('.prow2', has_text='Jordan P').click(); sheet().locator('.prow2', has_text='Sam L').click()
+    sheet().locator('button', has_text='Compare (2)').click(); pg.wait_for_selector('.ctable')
+    assert pg.locator('.chead .cname').count() == 2 and pg.locator('.cval.best').count() >= 1 and 'Serving' in pg.inner_text('main')
+    shot('18-compare')
+    pg.click('button[aria-label="Back"]'); pg.wait_for_selector('.rrow')
+    # missing scores
+    pg.locator('button', has_text='Missing scores').click(); pg.wait_for_selector('text=Not scored by anyone')
+    body = pg.inner_text('main').lower(); assert 'coach j' in body and 'ava c' in body, body[:400]
+    shot('19-missing')
+    pg.click('button[aria-label="Back"]'); pg.wait_for_selector('.rrow')
+    # print preview + PDF
+    pg.locator('button', has_text='Print or PDF').click(); pg.wait_for_selector('.paper')
+    assert 'U15 girls tryouts' in pg.inner_text('.paper') and pg.locator('.paper .ptbl tbody tr').count() == 6
+    with pg.expect_download() as dl: pg.locator('button', has_text='Save as PDF').click()
+    pdfb = open(dl.value.path(), 'rb').read(); assert pdfb[:8] == b'%PDF-1.4' and dl.value.suggested_filename.startswith('RosterPulse-'), dl.value.suggested_filename
+    open('test/' + name + '-results.pdf', 'wb').write(pdfb)
+    shot('20-print')
+    pg.click('button[aria-label="Back"]'); pg.wait_for_selector('.rrow')
     pg.locator('.rrow', has_text='Jordan P').click(); pg.wait_for_selector('.rcard')
     body = pg.inner_text('main'); assert '#1' in body and 'overall' in body.lower() and 'Quick hands' in body and 'Great hands' in body, body[:400]
     assert pg.locator('.bar-row').count() == 10 and pg.locator('.bar-row.strong').count() == 2 and pg.locator('.bar-row.weak').count() == 2
     shot('14-card')
+    pg.locator('button', has_text='Print or PDF').click(); pg.wait_for_selector('.paper'); assert 'Skills' in pg.inner_text('.paper') and 'Quick hands' in pg.inner_text('.paper')
+    with pg.expect_download() as dl: pg.locator('button', has_text='Save as PDF').click()
+    open('test/' + name + '-card.pdf', 'wb').write(open(dl.value.path(), 'rb').read())
+    pg.click('button[aria-label="Back"]'); pg.wait_for_selector('.rcard')
     pg.click('button[aria-label="Back"]'); pg.wait_for_selector('.rrow')
     # scale change keeps scores (convert)
     pg.locator('.seg button', has_text='Form').click(); pg.wait_for_selector('text=Measured tests')

@@ -170,10 +170,14 @@ function resultsTab(ev) {
     res.rule !== 'avg' && RS.day === 'all' ? h('p', { class: 'note' }, res.rule === 'total' ? 'Days are added together (Form tab).' : 'Each skill uses its latest score (carry forward).') : null,
     h('div', { class: 'list', style: 'gap:6px;margin-top:8px' }, list.length ? list : h('div', { class: 'empty' }, 'No ' + W.players + ' match.')),
     h('p', { class: 'note', style: 'margin-top:10px' }, '⚑ = evaluators disagree a lot on a skill. Tap a ' + W.player + ' for the full card.'),
+    sect('More'),
+    h('div', { class: 'toprow' },
+      h('button', { class: 'btn', onclick: () => compareSheet(ev) }, icon('users'), 'Compare'),
+      h('button', { class: 'btn', onclick: () => go('m', ev.id) }, icon('history'), 'Missing scores')),
     sect('Share'),
     h('div', { class: 'toprow' },
       h('button', { class: 'btn', onclick: () => saveFile('RosterPulse-' + fileSafe(ev.name) + '-results.csv', resultsCsv(ev), 'text/csv') }, icon('dl'), 'Spreadsheet'),
-      h('button', { class: 'btn', onclick: () => printResults(ev) }, icon('file'), 'Print')),
+      h('button', { class: 'btn', onclick: () => go('p', ev.id, 'results') }, icon('file'), 'Print or PDF')),
     h('p', { class: 'note', style: 'margin-top:8px' }, 'Results are for you only. Ratings are never shown to ' + W.players + ' or parents unless you share them.')
   ];
 }
@@ -233,7 +237,7 @@ function viewPlayerCard(evId, pid) {
       notes.length ? h('div', { class: 'stack', style: 'gap:6px' }, notes.map(n => h('div', { class: 'nitem' }, h('div', { class: 'pmeta' }, [n.who, n.day, n.skill].filter(Boolean).join(' · ')), h('div', null, n.text)))) : h('p', { class: 'note' }, 'No notes.'),
       h('div', { class: 'toprow', style: 'margin-top:18px' },
         prev ? h('button', { class: 'btn', onclick: () => goReplace('r', ev.id, prev.p.id) }, icon('back'), '#' + (prev.p.num || '–')) : null,
-        h('button', { class: 'btn', onclick: () => window.print() }, icon('file'), 'Print'),
+        h('button', { class: 'btn', onclick: () => go('p', ev.id, 'card', pid) }, icon('file'), 'Print or PDF'),
         next ? h('button', { class: 'btn', onclick: () => goReplace('r', ev.id, next.p.id) }, '#' + (next.p.num || '–'), icon('chev')) : null))];
 }
 
@@ -263,17 +267,111 @@ function resultsCsv(ev) {
   return '﻿' + lines.join('\r\n');
 }
 
-/* ---------------- print: a clean table of the current list ---------------- */
-function printResults(ev) {
-  const { res, rows, val } = resultRows(ev), f = ev.form, ks = allSkills(ev), gname = id => (ev.groups.find(g => g.id === id) || {}).name || '';
-  const line = ev.line || 0;
-  const tbl = h('table', { class: 'ptbl' },
-    h('thead', null, h('tr', null, ['#', 'No.', 'Name', cap(W.position), 'Group', 'Overall'].concat(ks.map(k => k.name), f.tests.map(t => t.name)).map(x => h('th', null, x)))),
-    h('tbody', null, rows.map((r, i) => h('tr', { class: line && i === line - 1 ? 'lineafter' : null },
-      [val(r) == null ? '' : i + 1, r.p.num, r.p.name + (r.flagged.length ? ' ⚑' : ''), r.p.pos, gname(r.p.group), r.pct == null ? '' : fmtV(r.overall) + ' (' + Math.round(r.pct) + '%)']
-        .concat(ks.map(k => r.skills[k.id] ? (f.scale === 'pcm' ? pcmLabel(r.skills[k.id].v) : fmtV(r.skills[k.id].v)) : ''), f.tests.map(t => r.tests[t.id] == null ? '' : fmtV(r.tests[t.id], 2)))
-        .map(x => h('td', null, x))))));
-  const box = h('div', { class: 'printonly' }, h('div', { class: 'pbrand' }, h('img', { src: '/icon.svg', alt: '' }), h('b', null, 'RosterPulse')), h('h1', null, ev.name + ' · results'), h('p', null, [sportById(ev.sport).name, RS.day === 'all' ? (ev.sessions.length > 1 ? 'all days' : null) : (ev.sessions.find(d => d.id === RS.day) || {}).name, 'printed ' + new Date().toLocaleDateString()].filter(Boolean).join(' · ')), tbl, h('p', { class: 'pfoot' }, 'Made with RosterPulse · results are private to the organizer'));
-  document.querySelectorAll('.printonly').forEach(x => x.remove()); document.body.append(box);
-  document.body.classList.add('printing'); setTimeout(() => { window.print(); setTimeout(() => { document.body.classList.remove('printing'); box.remove(); }, 500); }, 50);
+/* ---------------- reports (print preview and PDF share the same layout) ---------------- */
+const shortScore = (f, v) => v == null ? '' : f.scale === 'pcm' ? pcmLabel(v) : fmtV(v);
+function resultsReport(ev) {
+  const { res, rows, val, test, sk } = resultRows(ev), f = ev.form, ks = allSkills(ev), gname = id => (ev.groups.find(g => g.id === id) || {}).name || '';
+  const filt = [RS.group ? (RS.group === NONE ? 'no group' : gname(RS.group)) : null, RS.pos ? (RS.pos === NONE ? 'no ' + W.position : RS.pos) : null, RS.div ? (RS.div === NONE ? 'no division' : RS.div) : null].filter(Boolean);
+  const head = ['#', 'No.', 'Name', cap(W.position), 'Group', 'Overall', '%'].concat(ks.map(k => k.name), f.tests.map(t => t.name + (t.unit ? ' (' + t.unit + ')' : '')));
+  return { title: ev.name + ' · results', landscape: head.length > 8,
+    subtitle: [sportById(ev.sport).name, RS.day === 'all' ? (ev.sessions.length > 1 ? 'all days' : null) : (ev.sessions.find(d => d.id === RS.day) || {}).name, filt.length ? 'showing ' + filt.join(', ') : null, 'sorted by ' + (RS.sort === 'overall' ? 'overall' : (test || sk).name), 'printed ' + new Date().toLocaleDateString()].filter(Boolean).join(' · '),
+    blocks: [{ table: { head, align: ['r', 'r', 'l', 'l', 'l', 'r', 'r'].concat(ks.map(() => 'r'), f.tests.map(() => 'r')), line: ev.line || 0,
+      rows: rows.map((r, i) => [val(r) == null ? '' : String(i + 1), r.p.num, (r.p.name || '') + (r.flagged.length ? ' ⚑' : ''), r.p.pos, gname(r.p.group), r.pct == null ? '' : (f.scale === 'pcm' ? '' : fmtV(r.overall)), r.pct == null ? '' : Math.round(r.pct) + '%']
+        .concat(ks.map(k => r.skills[k.id] ? shortScore(f, r.skills[k.id].v) : ''), f.tests.map(t => r.tests[t.id] == null ? '' : fmtV(r.tests[t.id], 2)))) } },
+      { p: (ev.line ? 'Orange line: team line after ' + ev.line + ' spots. ' : '') + '⚑ = evaluators disagree a lot on a skill. Scale: ' + scaleLabel(f) + (ev.sessions.length > 1 ? '. Days: ' + (COMBINE.find(c => c[0] === (f.combine || 'avg')) || [])[1] : '') + '.' }] };
+}
+function cardReport(ev, pid) {
+  const { res } = resultRows(ev), r = res.rows.find(x => x.p.id === pid); if (!r) return null;
+  const f = ev.form, p = r.p, ks = skillsFor(ev, p), gname = (ev.groups.find(g => g.id === p.group) || {}).name, multi = res.dayIds.length > 1;
+  const rk = (lbl, x) => x ? ['#' + x.at + ' of ' + x.of + ' ' + lbl] : [];
+  const blocks = [{ kv: [['Overall', r.pct == null ? 'not scored' : (f.scale === 'pcm' ? Math.round(r.pct) + '%' : fmtV(r.overall) + ' out of ' + res.skMax + ' (' + Math.round(r.pct) + '%)')]].concat(
+    r.rank ? [['Rank', [].concat(rk('overall', r.rank.all), rk(p.pos ? 'in ' + p.pos : '', r.rank.pos), rk('in ' + (gname || ''), r.rank.grp), rk('in ' + (p.div || ''), r.rank.div)).join(', ')]] : [],
+    [['Scored by', plural(r.nEval, 'evaluator', 'evaluators')]], r.flagged.length ? [['Evaluators disagree on', r.flagged.join(', ')]] : []) },
+    { h: 'Skills' }, { table: { head: ['Skill', 'Score'].concat(multi ? ev.sessions.filter(d => res.dayIds.includes(d.id)).map(d => d.name) : [], ['Evaluators']), align: ['l', 'r'].concat(multi ? res.dayIds.map(() => 'r') : [], ['r']),
+      rows: ks.map(k => { const x = r.skills[k.id]; return [k.name + (k.w !== 1 ? ' (' + wLabel(k.w) + ')' : ''), x ? shortScore(f, x.v) : '–'].concat(multi ? res.dayIds.map((_, j) => x && x.days && x.days[j] != null ? shortScore(f, x.days[j]) : '–') : [], [x ? String(x.n) : '']); }) } }];
+  if (f.tests.length) blocks.push({ h: 'Measured tests' }, { table: { head: ['Test', 'Result', 'Rank'], align: ['l', 'r', 'r'], rows: f.tests.map(t => [t.name, r.tests[t.id] == null ? '–' : fmtV(r.tests[t.id], 2) + ' ' + (t.unit || ''), r.testRank && r.testRank[t.id] ? '#' + r.testRank[t.id].at + ' of ' + r.testRank[t.id].of : '']) } });
+  const notes = notesFor(ev, pid);
+  if (notes.length) blocks.push({ h: 'Notes' }, { table: { head: ['Who', 'About', 'Note'], rows: notes.map(n => [[n.who, n.day].filter(Boolean).join(' · '), n.skill || 'Overall', n.text]) } });
+  return { title: '#' + (p.num || '–') + ' ' + (p.name || ''), subtitle: [ev.name, p.pos, gname, p.div, 'printed ' + new Date().toLocaleDateString()].filter(Boolean).join(' · '), blocks };
+}
+/* the report on screen (white paper) */
+function reportHtml(rep) {
+  return h('div', { class: 'paper' + (rep.landscape ? ' wide' : '') },
+    h('div', { class: 'pbrand' }, h('img', { src: '/icon.svg', alt: '' }), h('b', null, 'RosterPulse')), h('h1', null, rep.title), rep.subtitle ? h('p', { class: 'psub' }, rep.subtitle) : null,
+    rep.blocks.map(b => b.h ? h('h2', null, b.h) : b.p ? h('p', null, b.p) : b.kv ? h('table', { class: 'pkv' }, b.kv.map(([k, v]) => h('tr', null, h('td', null, k), h('th', null, v))))
+      : h('div', { class: 'ptwrap' }, h('table', { class: 'ptbl' }, h('thead', null, h('tr', null, b.table.head.map(x => h('th', null, x)))),
+        h('tbody', null, b.table.rows.map((r, i) => h('tr', { class: b.table.line && i === b.table.line - 1 ? 'lineafter' : null }, r.map((c, j) => h('td', { class: b.table.align && b.table.align[j] === 'r' ? 'r' : null }, c)))))))),
+    h('p', { class: 'pfoot' }, 'Made with RosterPulse · results are private to the organizer'));
+}
+function viewPrint(evId, kind, pid) {
+  const ev = eventById(evId); if (!ev) return viewHome();
+  ensureDays(ev); W = wordsOf(ev);
+  const rep = kind === 'card' ? cardReport(ev, pid) : resultsReport(ev);
+  if (!rep) return viewEvent(evId, 'results');
+  const fname = 'RosterPulse-' + fileSafe(ev.name) + (kind === 'card' ? '-' + fileSafe(rep.title) : '-results') + '.pdf';
+  return [topBar('Print or save', kind === 'card' ? ['r', ev.id, pid] : ['e', ev.id, 'results']),
+    h('main', { class: 'page' },
+      h('div', { class: 'toprow ptool' },
+        h('button', { class: 'btn primary', onclick: () => { try { window.print(); } catch (e) { toast('This phone cannot print from here. Use Save as PDF.'); } } }, icon('file'), 'Print'),
+        h('button', { class: 'btn', onclick: () => saveFile(fname, makePdf(rep), 'application/pdf') }, icon('dl'), 'Save as PDF')),
+      h('p', { class: 'note ptool', style: 'margin:8px 0 12px' }, 'If Print does nothing (common when the app is opened from the home screen), tap Save as PDF: the share sheet has Print, Save to Files, Mail and more.'),
+      reportHtml(rep))];
+}
+
+/* ---------------- compare 2 or 3 players side by side ---------------- */
+function compareSheet(ev) {
+  const { rows } = resultRows(ev), pick = [];
+  openSheet((s, api) => {
+    const box = h('div', { class: 'list', style: 'gap:6px' }), go1 = h('button', { class: 'btn primary', onclick: () => { if (pick.length < 2) { toast('Pick 2 or 3 ' + W.players + '.'); return; } api.close(); go('c', ev.id, pick.join(',')); } }, 'Compare');
+    const paint = () => { go1.textContent = 'Compare' + (pick.length ? ' (' + pick.length + ')' : ''); box.replaceChildren(rows.map(r => h('button', { class: 'prow2' + (pick.includes(r.p.id) ? ' picked' : ''), onclick: () => { const i = pick.indexOf(r.p.id); if (i > -1) pick.splice(i, 1); else if (pick.length < 3) pick.push(r.p.id); else toast('Up to 3.'); paint(); } },
+      h('span', { class: 'jn' }, r.p.num || '–'), h('div', { class: 'grow', style: 'min-width:0' }, h('div', { class: 'pnm ellip' }, r.p.name || 'No name'), h('div', { class: 'pmeta' }, [r.p.pos, r.pct == null ? 'not scored' : Math.round(r.pct) + '%'].filter(Boolean).join(' · '))),
+      pick.includes(r.p.id) ? h('span', { class: 'pbadge full' }, String(pick.indexOf(r.p.id) + 1)) : null))); };
+    paint();
+    s.append(h('h2', null, 'Compare ' + W.players), h('p', { class: 'note', style: 'margin-bottom:10px' }, 'Pick 2 or 3. The list follows the Results filters.'), box, h('div', { class: 'acts' }, h('button', { class: 'btn', onclick: () => api.close() }, 'Cancel'), go1));
+  });
+}
+function viewCompare(evId, ids) {
+  const ev = eventById(evId); if (!ev) return viewHome();
+  ensureDays(ev); W = wordsOf(ev);
+  const { res } = resultRows(ev), f = ev.form, list = String(ids || '').split(',').map(id => res.rows.find(r => r.p.id === id)).filter(Boolean);
+  if (list.length < 2) return viewEvent(evId, 'results');
+  const best = (vals, low) => { const got = vals.filter(v => v != null); if (got.length < 2 || got.every(v => v === got[0])) return null; return low ? Math.min(...got) : Math.max(...got); };   // no highlight when tied
+  const row = (label, vals, show, low, sub) => { const b = best(vals, low); return h('div', { class: 'crow' }, h('div', { class: 'clab' }, label, sub ? h('span', { class: 'pmeta' }, ' ' + sub) : null), vals.map(v => h('div', { class: 'cval' + (b != null && v === b ? ' best' : '') }, v == null ? '–' : show(v)))); };
+  const skills = allSkills(ev).filter(k => list.some(r => r.skills[k.id] !== undefined));
+  return [topBar('Compare', ['e', ev.id, 'results']),
+    h('main', { class: 'page' },
+      h('div', { class: 'ctable', style: '--n:' + list.length },
+        h('div', { class: 'crow chead' }, h('div', { class: 'clab' }), list.map(r => h('button', { class: 'cval cname', onclick: () => go('r', ev.id, r.p.id) }, h('b', null, '#' + (r.p.num || '–')), h('span', { class: 'ellip' }, r.p.name || ''), h('span', { class: 'pmeta ellip' }, r.p.pos || ' ')))),
+        row('Overall', list.map(r => r.pct), v => Math.round(v) + '%'),
+        row('Rank', list.map(r => r.rank ? r.rank.all.at : null), v => '#' + v, true),
+        row('Evaluators', list.map(r => r.nEval || null), v => String(v)),
+        h('div', { class: 'csect' }, 'Skills'),
+        skills.map(k => row(k.name, list.map(r => r.skills[k.id] ? r.skills[k.id].v : null), v => shortScore(f, v), false, k.w !== 1 ? wLabel(k.w) : null)),
+        f.tests.length ? [h('div', { class: 'csect' }, 'Measured tests'), f.tests.map(t => row(t.name, list.map(r => r.tests[t.id]), v => fmtV(v, 2), t.better === 'low', t.unit))] : null,
+        list.some(r => r.flagged.length) ? row('Disagree on', list.map(r => r.flagged.length ? r.flagged.join(', ') : null), v => v) : null),
+      h('p', { class: 'note', style: 'margin-top:10px' }, 'Orange = best of the group. Tap a name for the full card.'))];
+}
+
+/* ---------------- missing scores: who still needs to score whom ---------------- */
+function viewMissing(evId) {
+  const ev = eventById(evId); if (!ev) return viewHome();
+  ensureDays(ev); W = wordsOf(ev);
+  if (RS.day !== 'all' && !ev.sessions.some(d => d.id === RS.day)) RS.day = 'all';
+  const sid = RS.day === 'all' ? ev.sessions[ev.sessions.length - 1].id : RS.day, day = ev.sessions.find(d => d.id === sid);
+  const evs = evaluatorsOf(ev); if (S.settings.me && S.settings.me.name && !evs.includes(S.settings.me.id)) evs.push(S.settings.me.id);
+  const groups = ev.groups.length ? ev.groups.map(g => [g.id, g.name]).concat(ev.players.some(p => !ev.groups.some(g => g.id === p.group)) ? [['', 'No group']] : []) : [['', null]];
+  const inG = gid => sortPlayers(ev.players.filter(p => gid ? p.group === gid : !ev.groups.some(g => g.id === p.group)));
+  const nobody = sortPlayers(ev.players.filter(p => !evs.some(by => progressOf(ev, p, sid, by).done)));
+  return [topBar('Missing scores', ['e', ev.id, 'results']),
+    h('main', { class: 'page' },
+      ev.sessions.length > 1 ? h('div', { class: 'seg', style: 'margin-bottom:12px' }, ev.sessions.map(d => h('button', { class: sid === d.id ? 'on' : '', onclick: () => { RS.day = d.id; render(); } }, d.name))) : null,
+      h('p', { class: 'note' }, 'For each evaluator: the ' + W.players + ' they have not fully scored' + (ev.sessions.length > 1 ? ' on ' + day.name : '') + '. Once evaluators score on their own phones (next step), everyone shows here.'),
+      sect('Not scored by anyone', h('span', { class: 'cnt' }, nobody.length || '')),
+      nobody.length ? h('div', { class: 'chips' }, nobody.map(p => h('button', { class: 'chip', onclick: () => go('r', ev.id, p.id) }, '#' + (p.num || '–') + ' ' + (p.name || '').split(' ')[0]))) : h('p', { class: 'note' }, 'Everyone has at least one score.'),
+      evs.length ? evs.map(by => {
+        const parts = groups.map(([gid, gname]) => { const miss = inG(gid).map(p => [p, progressOf(ev, p, sid, by)]).filter(([, pr]) => pr.done < pr.all); return [gname, miss]; }).filter(([, m]) => m.length);
+        const total = parts.reduce((a, [, m]) => a + m.length, 0);
+        return [sect(evalName(ev, by), h('span', { class: 'cnt' }, total ? total + ' to go' : 'all done')),
+          total ? parts.map(([gname, miss]) => [gname ? h('div', { class: 'lbl', style: 'margin:6px 0' }, gname) : null, h('div', { class: 'list', style: 'gap:6px' }, miss.map(([p, pr]) => h('button', { class: 'prow2', onclick: () => go('r', ev.id, p.id) }, h('span', { class: 'jn' }, p.num || '–'), h('div', { class: 'grow pnm ellip' }, p.name || 'No name'), h('span', { class: 'pbadge' + (pr.done ? '' : ' miss') }, pr.done ? pr.done + '/' + pr.all : 'none'))))]) : h('p', { class: 'note' }, 'Every ' + W.player + ' fully scored.')];
+      }) : h('div', { class: 'empty' }, 'No scores yet.'))];
 }

@@ -422,7 +422,7 @@ function backupSheet() {
 /* save a file: the share sheet on phones that support it (iPhone), else a normal download */
 async function saveFile(name, text, type) {
   try {
-    const f = new File([text], name, { type });
+    const f = new File([text], name, { type });   // text: a string or bytes (PDF)
     if (navigator.canShare && navigator.canShare({ files: [f] }) && /iPhone|iPad|Android/i.test(navigator.userAgent)) { await navigator.share({ files: [f], title: name }); return; }
   } catch (e) { if (e && e.name === 'AbortError') return; }
   const a = h('a', { href: URL.createObjectURL(new Blob([text], { type })), download: name }); document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
