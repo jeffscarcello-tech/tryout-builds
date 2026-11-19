@@ -32,8 +32,11 @@ def run(p, name, vp, mobile):
     assert pg.locator('.jn.dup').count() == 2, 'two dup badges'
     shot('4-players')
     # fix the duplicate: edit Mia to 14
-    pg.locator('.prow2', has_text='Mia R').click(); num = sheet().locator('input.inp').first; num.fill('14')
-    sheet().locator('button', has_text='Save').last.click(); time.sleep(0.2)
+    pg.locator('.prow2', has_text='Mia R').click(); pg.wait_for_selector('.pinfo')
+    assert 'Nobody has scored' in pg.inner_text('main'), 'player screen before scoring'
+    pg.click('button[aria-label="Edit details"]'); num = sheet().locator('input.inp').first; num.fill('14')
+    sheet().locator('button', has_text='Save').last.click(); time.sleep(0.2); assert pg.locator('.pinfo .jn').inner_text() == '14'
+    pg.click('button[aria-label="Back"]'); pg.wait_for_selector('text=Import list')
     assert pg.locator('.jn.dup').count() == 0, 'dup fixed'
     # add a player by hand
     pg.click('text=Add player'); sheet().locator('input.inp').nth(0).fill('5'); sheet().locator('input.inp').nth(1).fill('Lee T')
@@ -85,7 +88,7 @@ def run(p, name, vp, mobile):
     pg.locator('textarea.inp').fill('Great hands'); pg.locator('.sname').first.click()
     assert '13/13' in pg.inner_text('header'), pg.inner_text('header')
     shot('9-score')
-    pg.locator('button', has_text='Next: #').click(); pg.wait_for_selector('.srow'); assert 'Jordan P' not in pg.inner_text('header')
+    pg.locator('button', has_text='Next: #').click(); pg.wait_for_function("!document.querySelector('header').innerText.includes('Jordan P')", timeout=5000); pg.wait_for_selector('.srow')
     pg.locator('button', has_text='Next: #').click(); pg.wait_for_selector('.srow')
     pg.click('button[aria-label="Back"]'); pg.wait_for_selector('.keypad'); assert 'Group A' in pg.inner_text('header'), 'Back goes to the list, not the previous player'
     # by name: the full list only
@@ -95,6 +98,22 @@ def run(p, name, vp, mobile):
     shot('10-byname')
     pg.reload(); pg.wait_for_selector('.prow2')   # remembers By name
     pg.locator('.prow2', has_text='Jordan P').click(); assert pg.locator('textarea.inp').input_value() == 'Great hands' and pg.locator('.snote').count() == 1
+    # by skill: one skill, every player
+    pg.click('button[aria-label="Back"]'); pg.wait_for_selector('.prow2')
+    pg.locator('.seg button', has_text='By skill').click(); pg.wait_for_selector('select[aria-label="Skill"]')
+    pg.locator('select[aria-label="Skill"]').select_option(label='Passing'); time.sleep(0.2)
+    assert pg.locator('select[aria-label="Skill"]').evaluate('e => e.options[e.selectedIndex].text') == 'Passing', 'skill menu shows the skill being scored'
+    rows = pg.locator('.skrow'); assert rows.count() == 3, rows.count()
+    assert rows.filter(has_text='Jordan P').locator('.sb.on').count() == 1, 'Jordan already has a passing score'
+    rows.filter(has_text='Sam L').locator('.sb').nth(5).click(); rows.filter(has_text='Mia R').locator('.sb').nth(2).click()
+    assert pg.locator('.skrow .sb.on').count() == 3 and '3 of 3' in pg.inner_text('main')
+    rows.filter(has_text='Sam L').locator('.nbtn').click(); sheet().locator('input.inp').fill('Platform drops'); sheet().locator('button', has_text='Save').click(); pg.wait_for_selector('.skrow .snote')
+    shot('15-byskill')
+    pg.locator('button', has_text='Next skill:').click(); time.sleep(0.2)
+    assert pg.locator('select[aria-label="Skill"] option:checked').inner_text() != 'Passing'
+    pg.reload(); pg.wait_for_selector('select[aria-label="Skill"]'); assert pg.locator('.seg button.on', has_text='By skill').count() == 1, 'mode remembered'
+    pg.locator('.seg button', has_text='By name').click(); pg.wait_for_selector('.prow2')
+    assert pg.locator('.prow2', has_text='Sam L').locator('.pbadge').count() == 1, 'Sam now partly scored'
     # days: add Day 2, carry scores forward
     pg.goto(URL + '#/'); pg.locator('.evcard', has_text='U15 girls').click(); pg.locator('.seg button', has_text='Form').click(); pg.wait_for_selector('text=Add day')
     pg.click('text=Add day'); pg.wait_for_selector('text=How the days count'); pg.locator('.prow', has_text='Carry scores forward').click()
@@ -110,22 +129,38 @@ def run(p, name, vp, mobile):
     assert pg.locator('.krow', has_text='Approach jump').locator('.pmeta').inner_text().startswith('cm')
     shot('12-tests')
     pg.locator('.seg button', has_text='Players').click(); pg.click('text=Start scoring')
-    sheet().locator('button.chip', has_text='Day 2').click(); sheet().locator('.item', has_text='Group A').click(); pg.wait_for_selector('.prow2')
-    assert 'Day 2' in pg.inner_text('header')
+    sheet().locator('button.chip', has_text='Day 2').click(); sheet().locator('.item', has_text='Group A').click()
+    pg.wait_for_function("document.querySelector('header').innerText.includes('Day 2')", timeout=5000); pg.wait_for_selector('.prow2')
     assert pg.locator('.prow2', has_text='Jordan P').locator('.pbadge.full').count() == 1, 'carried scores count as done'
     pg.locator('.prow2', has_text='Jordan P').click(); pg.wait_for_selector('.srow')
     assert pg.locator('.sb.carried').count() == 10 and pg.locator('.sb.on').count() == 0, 'day 1 scores carried, faded'
     pg.locator('.srow:has(.sbtns)').nth(0).locator('.sb').nth(2).click(); assert pg.locator('.sb.on').count() == 1 and pg.locator('.sb.carried').count() == 9
     shot('11-day2')
     pg.goto(URL + '#/'); pg.locator('.evcard', has_text='U15 girls').click(); pg.wait_for_selector('.pbadge.full')
-    # results tab
+    # results tab (first clear Kai's position to test the No position choice)
+    pg.locator('.prow2', has_text='Jordan P').click(); pg.wait_for_selector('.pinfo')
+    body = pg.inner_text('main'); assert 'Coach J' in body and 'Day 1' in body and 'Day 2' in body and 'avg' in body, body[:500]
+    shot('16-player')
+    pg.click('button[aria-label="Back"]'); pg.wait_for_selector('text=Import list')
+    pg.locator('.prow2', has_text='Kai W').click(); pg.wait_for_selector('.pinfo'); pg.click('button[aria-label="Edit details"]')
+    sheet().locator('.field', has_text='Position').locator('button.chip', has_text='None').click(); sheet().locator('button', has_text='Save').last.click(); time.sleep(0.2)
+    pg.click('button[aria-label="Back"]'); pg.wait_for_selector('text=Import list')
     pg.locator('.seg button', has_text='Results').click(); pg.wait_for_selector('.rrow')
     assert pg.locator('.rrow').count() == 6, pg.locator('.rrow').count()
-    first = pg.locator('.rrow').first; assert 'Jordan P' in first.inner_text() and pg.locator('.rrow.none').count() >= 4, 'scored players first'
-    pg.locator('select[aria-label="Sort by"]').select_option(label='Passing'); time.sleep(0.2); assert 'Jordan P' in pg.locator('.rrow').first.inner_text()
+    cls = [pg.locator('.rrow').nth(i).get_attribute('class') for i in range(6)]; assert cls[:3] == ['rrow'] * 3 and all('none' in c for c in cls[3:]), cls   # 3 scored first
+    first = pg.locator('.rrow').first; assert 'Sam L' in first.inner_text(), 'Sam (passing 6 of 10 only) leads on percent'
+    pg.locator('select[aria-label="Sort by"]').select_option(label='Serving'); time.sleep(0.2); assert 'Jordan P' in pg.locator('.rrow').first.inner_text() and pg.locator('.rrow:not(.none)').count() == 1, 'only Jordan has Serving'
     pg.locator('select[aria-label="Sort by"]').select_option(label='Overall')
-    pg.click('button[aria-label="More spots"]'); time.sleep(0.2); assert pg.locator('b.num').first.inner_text() == '1'; assert pg.locator('.tline').count() == 0, 'no line when everyone scored fits'
+    pg.click('button[aria-label="More spots"]'); time.sleep(0.2); assert pg.locator('b.num').first.inner_text() == '1'; assert pg.locator('.tline').count() == 1, 'team line drawn'; assert pg.evaluate("document.querySelector('.tline').previousElementSibling.innerText").startswith('1'), 'line after the first spot'
     if pg.locator('select[aria-label="All groups"]').count(): pg.locator('select[aria-label="All groups"]').select_option(label='Group B'); time.sleep(0.2); assert 'Jordan P' not in pg.inner_text('.list'); pg.locator('select[aria-label="All groups"]').select_option(value='')
+    # position filter: the menu shows the choice, All positions brings everyone back, Show everyone resets
+    pos = pg.locator('select[aria-label="All positions"]')
+    pos.select_option(label='Setter'); time.sleep(0.2)
+    assert pos.evaluate('e => e.options[e.selectedIndex].text') == 'Setter' and pg.locator('.rrow').count() == 2, pg.locator('.rrow').count()
+    pg.locator('select[aria-label="All positions"]').select_option(label='All positions'); time.sleep(0.2); assert pg.locator('.rrow').count() == 6, 'All positions = everyone'
+    pg.locator('select[aria-label="All positions"]').select_option(label='Libero'); time.sleep(0.2); pg.locator('button', has_text='Show everyone').click(); time.sleep(0.2); assert pg.locator('.rrow').count() == 6
+    pg.locator('select[aria-label="All positions"]').select_option(label='No position'); time.sleep(0.2); assert pg.locator('.rrow').count() == 1 and 'Kai W' in pg.locator('.rrow').first.inner_text()
+    pg.locator('select[aria-label="All positions"]').select_option(label='All positions'); time.sleep(0.2); assert pg.locator('.rrow').count() == 6, 'Kai back with All positions'
     with pg.expect_download() as dl: pg.locator('button', has_text='Spreadsheet').click()
     csv = open(dl.value.path(), encoding='utf-8-sig').read(); assert csv.startswith('Rank,Number,Name') and 'Jordan P' in csv and 'Quick hands' in csv, csv[:300]
     shot('13-results')

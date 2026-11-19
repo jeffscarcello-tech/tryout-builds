@@ -102,13 +102,23 @@ function hasSkillScores(ev) { const ids = new Set(allSkills(ev).map(k => k.id));
    Results tab: rankings list, sortable, with filters, a day view and the team line.
    ===================================================================== */
 const RS = { sort: 'overall', day: 'all', group: '', pos: '', div: '' };
+const NONE = '__none__';   // the 'No position' (or group, division) choice
+let RS_EV = null;           // filters reset when a different event is opened
 const fmtV = (v, d = 1) => v == null ? '–' : (Math.round(v * Math.pow(10, d)) / Math.pow(10, d)).toString();
 const pcmLabel = v => v == null ? '–' : v >= 2.5 ? '+' : v >= 1.5 ? '✓' : '−';
 function resultRows(ev) {
+  if (RS_EV !== ev.id) { RS_EV = ev.id; RS.group = RS.pos = RS.div = ''; RS.day = 'all'; RS.sort = 'overall'; }
   if (RS.day !== 'all' && !ev.sessions.some(d => d.id === RS.day)) RS.day = 'all';
   const res = computeResults(ev, RS.day), f = ev.form;
   const gname = id => (ev.groups.find(g => g.id === id) || {}).name || '';
-  let rows = res.rows.filter(r => (!RS.group || r.p.group === RS.group) && (!RS.pos || r.p.pos === RS.pos) && (!RS.div || r.p.div === RS.div));
+  const hasG = id => ev.groups.some(g => g.id === id);
+  const okG = r => !RS.group || (RS.group === NONE ? !hasG(r.p.group) : r.p.group === RS.group);
+  const okP = r => !RS.pos || (RS.pos === NONE ? !r.p.pos : r.p.pos === RS.pos);
+  const okD = r => !RS.div || (RS.div === NONE ? !r.p.div : r.p.div === RS.div);
+  if (RS.group && RS.group !== NONE && !hasG(RS.group)) RS.group = '';
+  if (RS.pos && RS.pos !== NONE && !f.positions.includes(RS.pos)) RS.pos = '';
+  if (RS.div && RS.div !== NONE && !f.divisions.includes(RS.div)) RS.div = '';
+  let rows = res.rows.filter(r => okG(r) && okP(r) && okD(r));
   const test = f.tests.find(t => t.id === RS.sort), sk = allSkills(ev).find(k => k.id === RS.sort);
   if (!test && !sk) RS.sort = 'overall';
   const val = r => RS.sort === 'overall' ? r.pct : test ? r.tests[test.id] : (r.skills[sk.id] ? r.skills[sk.id].v : null);
@@ -119,7 +129,10 @@ function resultsTab(ev) {
   ensureDays(ev);
   const f = ev.form, { res, rows, val, test, sk, gname } = resultRows(ev);
   const scored = rows.filter(r => val(r) != null), line = Math.max(0, Math.min(ev.line || 0, scored.length));
-  const sel = (label, value, opts, set, noBlank) => h('select', { class: 'inp', 'aria-label': label, onchange: e => { set(e.target.value); render(); } }, (noBlank ? [] : [['', label]]).concat(opts).map(([k, l]) => h('option', { value: k, selected: value === k ? '' : null }, l)));
+  const sel = (label, value, opts, set, noBlank) => {
+    const el = h('select', { class: 'inp' + (value && !noBlank ? ' on' : ''), 'aria-label': label, onchange: e => { set(e.target.value); render(); } }, (noBlank ? [] : [['', label]]).concat(opts).map(([k, l]) => h('option', { value: k, selected: value === k }, l)));
+    el.value = value || (noBlank ? opts[0][0] : ''); return el;   // always show the filter that is really on
+  };
   const sortOpts = [['overall', 'Overall']].concat(allSkills(ev).map(k => [k.id, k.name]), f.tests.map(t => [t.id, t.name + (t.unit ? ' (' + t.unit + ')' : '')]));
   const showVal = r => {
     const v = val(r);
@@ -143,9 +156,10 @@ function resultsTab(ev) {
       h('div', { class: 'row' }, h('span', { class: 'lbl', style: 'min-width:54px' }, 'Sort'), h('div', { class: 'grow' }, sel('Sort by', RS.sort, sortOpts, v => { RS.sort = v || 'overall'; }, true))),
       ev.sessions.length > 1 ? h('div', { class: 'seg' }, [['all', 'All days']].concat(ev.sessions.map(d => [d.id, d.name])).map(([k, l]) => h('button', { class: RS.day === k ? 'on' : '', onclick: () => { RS.day = k; render(); } }, l))) : null,
       h('div', { class: 'row', style: 'gap:8px' },
-        ev.groups.length ? h('div', { class: 'grow' }, sel('All groups', RS.group, ev.groups.map(g => [g.id, g.name]), v => { RS.group = v; })) : null,
-        f.positions.length ? h('div', { class: 'grow' }, sel('All ' + W.positions, RS.pos, f.positions.map(x => [x, x]), v => { RS.pos = v; })) : null,
-        f.divisions.length ? h('div', { class: 'grow' }, sel('All divisions', RS.div, f.divisions.map(x => [x, x]), v => { RS.div = v; })) : null)),
+        ev.groups.length ? h('div', { class: 'grow' }, sel('All groups', RS.group, ev.groups.map(g => [g.id, g.name]).concat(ev.players.some(p => !ev.groups.some(g => g.id === p.group)) ? [[NONE, 'No group']] : []), v => { RS.group = v; })) : null,
+        f.positions.length ? h('div', { class: 'grow' }, sel('All ' + W.positions, RS.pos, f.positions.map(x => [x, x]).concat(ev.players.some(p => !p.pos) ? [[NONE, 'No ' + W.position]] : []), v => { RS.pos = v; })) : null,
+        f.divisions.length ? h('div', { class: 'grow' }, sel('All divisions', RS.div, f.divisions.map(x => [x, x]).concat(ev.players.some(p => !p.div) ? [[NONE, 'No division']] : []), v => { RS.div = v; })) : null),
+      RS.group || RS.pos || RS.div ? h('button', { class: 'btn sm ghost', onclick: () => { RS.group = RS.pos = RS.div = ''; render(); } }, 'Show everyone') : null),
     h('div', { class: 'row', style: 'margin:12px 0 4px' },
       h('span', { class: 'lbl' }, 'Team line'),
       h('button', { class: 'mini', 'aria-label': 'Fewer spots', onclick: () => { ev.line = Math.max(0, (ev.line || 0) - 1); touch(ev); render(); } }, '−'),
@@ -169,7 +183,7 @@ function viewPlayerCard(evId, pid) {
   const ev = eventById(evId); if (!ev) return viewHome();
   ensureDays(ev); W = wordsOf(ev);
   const { res, rows } = resultRows(ev), r = res.rows.find(x => x.p.id === pid);
-  if (!r) return viewEvent(evId, 'results');
+  if (!r) return viewEvent(evId, 'players');
   const f = ev.form, p = r.p, ks = skillsFor(ev, p), mx = res.skMax;
   const scoredKs = ks.filter(k => r.skills[k.id]).sort((a, b) => r.skills[b.id].pct - r.skills[a.id].pct);
   const strong = scoredKs.length >= 3 ? scoredKs.slice(0, 2).map(k => k.id) : [], weak = scoredKs.length >= 3 ? scoredKs.slice(-2).map(k => k.id) : [];
@@ -177,9 +191,17 @@ function viewPlayerCard(evId, pid) {
   const chip = (label, rk) => rk ? h('div', { class: 'rchip' }, h('b', null, '#' + rk.at), h('span', null, 'of ' + rk.of + ' ' + label)) : null;
   const gname = (ev.groups.find(g => g.id === p.group) || {}).name;
   const notes = notesFor(ev, pid);
-  return [topBar('#' + (p.num || '–') + ' ' + (p.name || ''), ['e', ev.id, 'results']),
+  const summary = scoringSummary(ev, p);
+  return [topBar('#' + (p.num || '–') + ' ' + (p.name || ''), ['e', ev.id, 'players'], h('button', { class: 'iconbtn', 'aria-label': 'Edit details', onclick: () => playerSheet(ev, p) }, icon('edit'))),
     h('main', { class: 'page card-page' },
-      h('div', { class: 'pmeta', style: 'margin:-4px 0 12px' }, [p.pos, gname, p.div, ev.name].filter(Boolean).join(' · ')),
+      h('div', { class: 'pinfo' },
+        h('div', { class: 'row', style: 'gap:12px' }, h('span', { class: 'jn big' }, p.num || '–'),
+          h('div', { class: 'grow', style: 'min-width:0' }, h('div', { class: 'pnm', style: 'font-size:20px' }, p.name || 'No name'),
+            h('div', { class: 'pmeta' }, [p.pos || 'No ' + W.position, gname || 'No group', p.div || null, p.present === false ? 'Not checked in' : 'Checked in'].filter(Boolean).join(' · '))),
+          h('button', { class: 'btn sm', onclick: () => playerSheet(ev, p) }, icon('edit'), 'Edit')),
+        p.notes ? h('div', { class: 'snote', style: 'margin-top:8px' }, 'Roster note: ' + p.notes) : null),
+      h('button', { class: 'btn primary block', style: 'margin:12px 0 4px', onclick: async () => { if (!(await ensureEvaluatorName())) return; const sid = ((S.settings.day || {})[ev.id] && ev.sessions.some(d => d.id === S.settings.day[ev.id])) ? S.settings.day[ev.id] : ev.sessions[ev.sessions.length - 1].id; go('s', ev.id, sid, 'all', p.id); } }, icon('check'), r.nEval ? 'Score this ' + W.player + ' again' : 'Score this ' + W.player),
+      sect('Results'),
       h('div', { class: 'rcard' },
         h('div', { class: 'ovr' }, r.pct == null ? h('div', { class: 'big' }, '–') : [h('div', { class: 'big' }, f.scale === 'pcm' ? Math.round(r.pct) + '%' : fmtV(r.overall)), h('div', { class: 'of' }, f.scale === 'pcm' ? 'overall' : 'out of ' + mx + ' · ' + Math.round(r.pct) + '%')]),
         h('div', { class: 'rchips' },
@@ -189,6 +211,10 @@ function viewPlayerCard(evId, pid) {
         r.scored < r.of ? h('span', { class: 'pbadge' }, r.scored + ' of ' + r.of + ' skills scored') : null,
         r.flagged.length ? h('span', { class: 'pbadge bad' }, '⚑ Evaluators disagree: ' + r.flagged.join(', ')) : null,
         RS.day !== 'all' ? h('span', { class: 'pbadge' }, (ev.sessions.find(d => d.id === RS.day) || {}).name + ' only') : null),
+      sect('How they were scored', h('span', { class: 'cnt' }, summary.length || '')),
+      summary.length ? h('div', { class: 'list', style: 'gap:6px' }, summary.map(x => h('div', { class: 'krow' },
+        h('div', { class: 'knm' }, h('div', { class: 'pnm' }, x.who + (x.day ? ' · ' + x.day : '')), h('div', { class: 'pmeta' }, x.done + ' of ' + x.all + ' scored' + (x.notes ? ' · ' + plural(x.notes, 'note', 'notes') : '') + (x.when ? ' · ' + x.when : ''))),
+        h('b', { class: 'num', style: 'font-size:18px' }, x.avg == null ? '–' : (f.scale === 'pcm' ? pcmLabel(x.avg) : fmtV(x.avg)) + (f.scale === 'pcm' ? '' : ' avg'))))) : h('p', { class: 'note' }, 'Nobody has scored this ' + W.player + ' yet.'),
       sect('Skills'),
       h('div', { class: 'stack', style: 'gap:8px' }, ks.map(k => {
         const s = r.skills[k.id];
@@ -208,6 +234,18 @@ function viewPlayerCard(evId, pid) {
         prev ? h('button', { class: 'btn', onclick: () => goReplace('r', ev.id, prev.p.id) }, icon('back'), '#' + (prev.p.num || '–')) : null,
         h('button', { class: 'btn', onclick: () => window.print() }, icon('file'), 'Print'),
         next ? h('button', { class: 'btn', onclick: () => goReplace('r', ev.id, next.p.id) }, '#' + (next.p.num || '–'), icon('chev')) : null))];
+}
+
+/* one line per evaluator and day: how much of the form they filled in, their average, notes, last change */
+function scoringSummary(ev, p) {
+  const ks = skillsFor(ev, p), kids = new Set(ks.map(k => k.id)), tids = new Set(ev.form.tests.map(t => t.id)), out = {};
+  const add = (by, sid) => { const key = by + '|' + sid; if (!out[key]) { const d = ev.sessions.find(x => x.id === sid); out[key] = { by, sid, who: evalName(ev, by), day: ev.sessions.length > 1 && d ? d.name : null, order: ev.sessions.indexOf(d), done: 0, all: ks.length + tids.size, sum: 0, n: 0, notes: 0, t: 0 }; } return out[key]; };
+  for (const key in ev.scores || {}) {
+    const [by, pid, kid, sid] = key.split('|'), r = ev.scores[key]; if (pid !== p.id || !r || r.v == null || (!kids.has(kid) && !tids.has(kid))) continue;
+    const o = add(by, sid); o.done++; o.t = Math.max(o.t, r.t || 0); if (kids.has(kid)) { o.sum += r.v; o.n++; }
+  }
+  for (const key in ev.notes || {}) { const [by, pid, , sid] = key.split('|'), r = ev.notes[key]; if (pid === p.id && r && r.v) { const o = add(by, sid); o.notes++; o.t = Math.max(o.t, r.t || 0); } }
+  return Object.values(out).map(o => Object.assign(o, { avg: o.n ? o.sum / o.n : null, when: o.t ? new Date(o.t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + new Date(o.t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '' })).sort((a, b) => a.order - b.order || a.who.localeCompare(b.who));
 }
 
 /* ---------------- spreadsheet export (same order and filters as on screen) ---------------- */

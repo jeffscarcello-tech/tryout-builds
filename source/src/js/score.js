@@ -83,12 +83,13 @@ function viewScoreList(evId, sid, gid) {
   ensureDays(ev); W = wordsOf(ev);
   const day = dayById(ev, sid); sid = day.id;
   const g = ev.groups.find(x => x.id === gid), list = groupPlayers(ev, g ? g.id : 'all');
-  const by = S.settings.pickBy === 'name' ? 'name' : 'number';
+  const by = ['name', 'skill'].includes(S.settings.pickBy) ? S.settings.pickBy : 'number';
   const open = p => { typed = ''; go('s', ev.id, sid, gid, p.id); };
   const done = list.filter(p => { const pr = progressOf(ev, p, sid); return pr.all && pr.done === pr.all; }).length;
   const status = p => { const pr = progressOf(ev, p, sid); return pr.all && pr.done === pr.all ? h('span', { class: 'pbadge full' }, 'Done') : pr.done ? h('span', { class: 'pbadge' }, pr.done + '/' + pr.all) : null; };
   let body;
-  if (by === 'number') {
+  if (by === 'skill') body = scoreBySkill(ev, sid, list);
+  else if (by === 'number') {
     const matches = typed ? list.filter(p => p.num === typed) : [];
     const anyStart = !typed || list.some(p => p.num.startsWith(typed));
     body = [
@@ -107,11 +108,67 @@ function viewScoreList(evId, sid, gid) {
       h('span', { class: 'jn' }, p.num || '–'), h('div', { class: 'grow', style: 'min-width:0' }, h('div', { class: 'pnm ellip' }, p.name || 'No name'), h('div', { class: 'pmeta ellip' }, [p.pos, p.div].filter(Boolean).join(' · ') || ' ')), status(p)))) : h('div', { class: 'empty' }, 'No ' + W.players + ' in this group.');
   }
   return [topBar((g ? g.name : 'Everyone') + (ev.sessions.length > 1 ? ' · ' + day.name : ''), ['e', ev.id, 'players']),
-    h('div', { class: 'subtabs' }, h('div', { class: 'seg' }, [['number', 'By number'], ['name', 'By name']].map(([k, l]) => h('button', { class: by === k ? 'on' : '', onclick: () => { S.settings.pickBy = k; typed = ''; save(); render(); } }, l)))),
+    h('div', { class: 'subtabs' }, h('div', { class: 'seg' }, [['number', 'By number'], ['name', 'By name'], ['skill', 'By skill']].map(([k, l]) => h('button', { class: by === k ? 'on' : '', onclick: () => { S.settings.pickBy = k; typed = ''; save(); render(); } }, l)))),
     h('main', { class: 'page' },
-      h('div', { class: 'row', style: 'margin:-4px 0 12px' }, h('div', { class: 'pmeta grow' }, 'Scoring as ' + me().name), h('span', { class: 'cnt' }, done + ' of ' + list.length + ' done')),
+      h('div', { class: 'row', style: 'margin:-4px 0 12px' }, h('div', { class: 'pmeta grow' }, 'Scoring as ' + me().name), by === 'skill' ? null : h('span', { class: 'cnt' }, done + ' of ' + list.length + ' done')),
       body,
       h('p', { class: 'note', style: 'margin-top:14px' }, 'Scores save on this phone as you tap, with or without signal.'))];
+}
+
+/* the small + beside a skill: a note on that skill for this player and day */
+function skillNoteBtn(ev, p, k, sid) {
+  const n = getNote(ev, p.id, k.id, sid);
+  return h('button', { class: 'nbtn' + (n ? ' on' : ''), 'aria-label': 'Note for ' + k.name, onclick: async () => {
+    const v = await promptBox({ title: (p.num ? '#' + p.num + ' ' : '') + k.name + ' note', value: n, placeholder: 'For example: drops elbow on serve', max: 200, note: 'Leave empty and save to remove the note.' });
+    if (v === null) return; setNote(ev, p.id, k.id, sid, v); render();
+  } }, n ? icon('edit', 16) : icon('plus', 16));
+}
+/* does this skill (or test) apply to this player? goalie skills only for goalies, the main list for everyone else */
+function skillApplies(ev, p, kid) {
+  const f = ev.form; if (f.tests.some(t => t.id === kid)) return true;
+  if (!f.alt) return true;
+  const isAlt = f.alt.skills.some(k => k.id === kid);
+  return isAlt ? p.pos === f.alt.pos : p.pos !== f.alt.pos;
+}
+function skillChoices(ev) {
+  const f = ev.form;
+  return f.skills.map(k => [k, k.name]).concat(f.alt ? f.alt.skills.map(k => [k, k.name + ' (' + f.alt.pos.toLowerCase() + 's)']) : [], f.tests.map(t => [Object.assign({ test: true }, t), t.name + (t.unit ? ' (' + t.unit + ')' : '')]));
+}
+
+/* ---------------- by skill: one skill, every player ---------------- */
+function scoreBySkill(ev, sid, list) {
+  const choices = skillChoices(ev);
+  if (!choices.length) return h('div', { class: 'empty' }, 'This form has no skills. Add some in the Form tab.');
+  const pick = S.settings.skillPick = S.settings.skillPick || {};
+  let ci = choices.findIndex(([k]) => k.id === pick[ev.id]); if (ci < 0) ci = 0;
+  const [k, label] = choices[ci], vals = scaleValues(ev.form.scale);
+  const setK = i => { pick[ev.id] = choices[i][0].id; save(); render(); window.scrollTo(0, 0); };
+  const rows = list.filter(p => skillApplies(ev, p, k.id));
+  const done = rows.filter(p => shownScore(ev, p.id, k.id, sid).v != null).length;
+  const row = p => {
+    const cur = shownScore(ev, p.id, k.id, sid), n = getNote(ev, p.id, k.id, sid);
+    let ctl;
+    if (k.test) {
+      ctl = h('input', { class: 'inp', inputmode: 'decimal', value: cur.v == null ? '' : String(cur.v), placeholder: k.unit || '', style: 'max-width:130px' + (cur.carried ? ';color:var(--muted)' : ''), 'aria-label': (p.num || '') + ' ' + k.name });
+      ctl.addEventListener('change', () => { const v = parseFloat(String(ctl.value).replace(',', '.')); setScore(ev, p.id, k.id, sid, isFinite(v) ? Math.round(v * 1000) / 1000 : null); render(); });
+    } else {
+      ctl = h('div', { class: 'sbtns n' + vals.length }, vals.map(([v, l]) => h('button', { class: 'sb' + (cur.v === v ? (cur.carried ? ' carried' : ' on') : ''), 'aria-label': (p.num ? '#' + p.num + ' ' : '') + k.name + ' ' + l, onclick: () => {
+        const own = getScore(ev, p.id, k.id, sid); setScore(ev, p.id, k.id, sid, own === v ? null : v); render();
+      } }, l)));
+    }
+    return h('div', { class: 'srow skrow' + (p.present === false ? ' out' : '') },
+      h('div', { class: 'shead' }, h('span', { class: 'jn' }, p.num || '–'), h('div', { class: 'grow', style: 'min-width:0' }, h('div', { class: 'pnm ellip' }, p.name || 'No name'), p.pos ? h('div', { class: 'pmeta' }, p.pos) : null),
+        cur.carried ? h('span', { class: 'carry' }, 'from ' + cur.carried.name) : null, skillNoteBtn(ev, p, k, sid)),
+      n ? h('div', { class: 'snote' }, n) : null, ctl);
+  };
+  return [
+    h('div', { class: 'skillbar' },
+      h('button', { class: 'mini', 'aria-label': 'Previous skill', disabled: ci === 0, onclick: () => setK(ci - 1) }, icon('back')),
+      (() => { const el = h('select', { class: 'inp grow', 'aria-label': 'Skill', onchange: e => setK(+e.target.value) }, choices.map(([c, l], i) => h('option', { value: String(i), selected: i === ci }, l))); el.value = String(ci); return el; })(),
+      h('button', { class: 'mini', 'aria-label': 'Next skill', disabled: ci === choices.length - 1, onclick: () => setK(ci + 1) }, icon('chev'))),
+    h('div', { class: 'row', style: 'margin:8px 0 10px' }, h('span', { class: 'pmeta grow' }, k.test ? (k.better === 'low' ? 'Lower is better' : 'Higher is better') : 'Every tap is a ' + k.name.toLowerCase() + ' score'), h('span', { class: 'cnt' }, done + ' of ' + rows.length)),
+    rows.length ? h('div', { class: 'stack', style: 'gap:8px' }, rows.map(row)) : h('div', { class: 'empty' }, 'No ' + W.players + ' here use this skill.'),
+    ci < choices.length - 1 ? h('button', { class: 'btn primary block', style: 'margin-top:14px', onclick: () => setK(ci + 1) }, 'Next skill: ' + choices[ci + 1][1], icon('chev')) : h('p', { class: 'note center', style: 'margin-top:14px' }, 'That is the last skill.')];
 }
 
 /* ---------------- one player ---------------- */
@@ -123,13 +180,7 @@ function viewScorePlayer(evId, sid, gid, pid) {
   const ks = skillsFor(ev, p), vals = scaleValues(ev.form.scale), pr = progressOf(ev, p, sid);
   const list = groupPlayers(ev, gid), i = list.findIndex(x => x.id === p.id);
   const nextUnscored = list.slice(i + 1).concat(list.slice(0, i)).find(x => { const q = progressOf(ev, x, sid); return q.done < q.all; });
-  const noteBtn = k => {
-    const n = getNote(ev, p.id, k.id, sid);
-    return h('button', { class: 'nbtn' + (n ? ' on' : ''), 'aria-label': 'Note for ' + k.name, onclick: async () => {
-      const v = await promptBox({ title: k.name + ' note', value: n, placeholder: 'For example: drops elbow on serve', max: 200, note: 'Leave empty and save to remove the note.' });
-      if (v === null) return; setNote(ev, p.id, k.id, sid, v); render();
-    } }, n ? icon('edit', 16) : icon('plus', 16));
-  };
+  const noteBtn = k => skillNoteBtn(ev, p, k, sid);
   const row = k => {
     const cur = shownScore(ev, p.id, k.id, sid), n = getNote(ev, p.id, k.id, sid);
     return h('div', { class: 'srow' },

@@ -142,7 +142,7 @@ function playersTab(ev) {
     dup.size ? h('p', { class: 'warn', style: 'margin-bottom:10px' }, 'Some numbers are used twice' + (ev.groups.length ? ' in the same group' : '') + ' (shown in red). Evaluators score by number, so each needs its own.') : null,
     shown.length ? h('div', { class: 'list', style: 'gap:8px' }, shown.map(p => {
       const g = groupsById[p.group];
-      return h('button', { class: 'prow2' + (p.present === false ? ' out' : ''), onclick: () => playerSheet(ev, p) },
+      return h('button', { class: 'prow2' + (p.present === false ? ' out' : ''), onclick: () => go('r', ev.id, p.id) },
         h('span', { class: 'jn' + (dup.has((p.group || '') + '|' + p.num) ? ' dup' : '') }, p.num || '–'),
         h('div', { class: 'grow', style: 'min-width:0' }, h('div', { class: 'pnm ellip' }, p.name || 'No name'),
           h('div', { class: 'pmeta ellip' }, [p.pos, p.div, g ? g.name : null, p.notes ? 'Note' : null].filter(Boolean).join(' · ') || ' ')),
@@ -180,7 +180,7 @@ function playerSheet(ev, p) {
         h('p', { class: 'note' }, 'Keep it minimal: number, name, ' + W.position + ' and age division. No birthdays, emails or phone numbers needed.')),
       h('div', { class: 'acts' },
         isNew ? h('button', { class: 'btn', onclick: () => { if (store()) { api.close(); render(); playerSheet(ev, null); toast('Added. Add the next one.'); } } }, 'Save and add next')
-          : h('button', { class: 'btn danger', onclick: async () => { if (await confirmBox({ title: 'Remove this ' + W.player + '?', ok: 'Remove', danger: true })) { ev.players = ev.players.filter(x => x !== p); touch(ev); api.close(); render(); } } }, 'Remove'),
+          : h('button', { class: 'btn danger', onclick: async () => { if (await confirmBox({ title: 'Remove this ' + W.player + '?', ok: 'Remove', danger: true })) { ev.players = ev.players.filter(x => x !== p); touch(ev); api.close(); if (R.name === 'r') goReplace('e', ev.id, 'players'); else render(); } } }, 'Remove'),
         h('button', { class: 'btn primary', onclick: () => { if (store()) { api.close(); render(); } } }, 'Save')));
     if (isNew) setTimeout(() => { try { num.focus(); } catch (e) { /* ignore */ } }, 80);
   });

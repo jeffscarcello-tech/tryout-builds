@@ -9,7 +9,7 @@ const ctx = { console, JSON, Date, Math, Map, Set, String, Object, Array, parseI
   localStorage: { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } },
   window: { addEventListener() { } }, document: { addEventListener() { }, hidden: false }, toast() { } };
 vm.createContext(ctx);
-vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind, computeResults, notesFor, convertScale, hasSkillScores, scaleMax };', ctx);
+vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind, computeResults, notesFor, convertScale, hasSkillScores, scaleMax, skillApplies, skillChoices };', ctx);
 const T = ctx.__t;
 let n = 0; const ok = m => { n++; console.log('ok', n, m); };
 
@@ -108,4 +108,9 @@ assert.ok(T.hasSkillScores(C0)); let nconv = T.convertScale(C0, '5', '10'); asse
 assert.deepEqual([C0.scores['e|p|' + ka + '|d1'].v, C0.scores['e|q|' + ka + '|d1'].v, C0.scores['e|r|' + ka + '|d1'].v], [8, 1, 10]); assert.equal(C0.scores['e|p|' + C0.form.tests[0].id + '|d1'].v, 60); ok('1 to 5 into 1 to 10 keeps relative place (4 -> 8, 1 -> 1, 5 -> 10); tests untouched');
 T.convertScale(C0, '10', 'pcm'); assert.deepEqual([C0.scores['e|p|' + ka + '|d1'].v, C0.scores['e|q|' + ka + '|d1'].v, C0.scores['e|r|' + ka + '|d1'].v], [3, 1, 3]); ok('1 to 10 into + / check / minus (8 of 10 rounds to +)');
 T.convertScale(C0, 'pcm', '5'); assert.deepEqual([C0.scores['e|p|' + ka + '|d1'].v, C0.scores['e|q|' + ka + '|d1'].v, C0.scores['e|r|' + ka + '|d1'].v], [5, 1, 5]); ok('+ / check / minus into 1 to 5');
+// score by skill
+const hk2 = T.newEvent('Hk', 'hockey'); const ch = T.skillChoices(hk2);
+assert.equal(ch.length, hk2.form.skills.length + hk2.form.alt.skills.length + hk2.form.tests.length); assert.ok(ch.some(([k, l]) => /\(goalies\)$/.test(l))); assert.ok(ch[ch.length - 1][0].test); ok('skill menu: skills, goalie skills, then tests');
+const fwd = { pos: 'Forward' }, gk = { pos: 'Goalie' };
+assert.ok(T.skillApplies(hk2, fwd, hk2.form.skills[0].id)); assert.ok(!T.skillApplies(hk2, gk, hk2.form.skills[0].id)); assert.ok(T.skillApplies(hk2, gk, hk2.form.alt.skills[0].id)); assert.ok(!T.skillApplies(hk2, fwd, hk2.form.alt.skills[0].id)); assert.ok(T.skillApplies(hk2, gk, hk2.form.tests[0].id)); ok('goalie skills only list goalies; tests list everyone');
 console.log('ALL', n, 'UNIT TESTS PASSED');
