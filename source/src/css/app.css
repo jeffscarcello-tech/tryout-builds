@@ -1,5 +1,5 @@
 /* ---------- RosterPulse additions (on top of the ShotPulse look) ---------- */
-.applogo{width:38px;height:38px;flex:none}
+.applogo{width:40px;height:40px;border-radius:10px;flex:none}
 .wm{font-family:var(--disp);font-weight:900;font-size:20px;letter-spacing:-.02em}
 .wm b{color:var(--accent);font-weight:900}
 .hero{padding:6px 2px 4px}
@@ -156,7 +156,7 @@ textarea.inp{min-height:180px;padding:12px 14px;line-height:1.45;font-family:inh
 .jn.big{min-width:56px;height:52px;font-size:22px}
 /* ---------- brand ---------- */
 .bfoot{display:flex;align-items:center;justify-content:center;gap:8px;margin:28px 0 6px;color:var(--muted);font-size:12px;font-weight:700}
-.bfoot img{width:28px;height:28px}
+.bfoot img{width:28px;height:28px;border-radius:7px}
 .bfoot .wm{font-size:15px;color:var(--text)}
 .bfoot .aboutlink{color:var(--muted);text-decoration:underline;text-underline-offset:3px}.bfoot .aboutlink:before{content:'·';margin-right:8px;display:inline-block;text-decoration:none}
 .pbrand{display:flex;align-items:center;gap:6px;margin-bottom:6px}

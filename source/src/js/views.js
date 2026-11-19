@@ -12,7 +12,7 @@ let W = TEAM_WORDS;   // words for the event on screen
 
 function brandBar(right) {
   return h('header', { class: 'top' },
-    h('div', { class: 'brand grow' }, h('img', { src: MARK_URL, alt: '', class: 'applogo' }), h('span', { class: 'wm' }, 'Roster', h('b', null, 'Pulse'))), right);
+    h('div', { class: 'brand grow' }, h('img', { src: ICON_URL, alt: '', class: 'applogo' }), h('span', { class: 'wm' }, 'Roster', h('b', null, 'Pulse'))), right);
 }
 /* direct: Back always goes to the given page (scoring: from a player straight to the list, never player to player) */
 function topBar(title, back, right, direct) {
@@ -27,8 +27,8 @@ const field = (label, input, hint) => h('div', { class: 'field' }, h('label', nu
 /* RosterPulse wordmark (logo + name), used in footers and print */
 const wordmark = (cls) => h('span', { class: 'wm ' + (cls || '') }, 'Roster', h('b', null, 'Pulse'));
 /* the logo address carries the build, so a new logo is never stuck in a phone's cache */
-const ICON_URL = '/icon.svg?v=__BUILD__', MARK_URL = '/mark.svg?v=__BUILD__';   // icon = Home Screen tile; mark = the logo on its own, used inside the app
-const brandFoot = () => h('div', { class: 'bfoot' }, h('img', { src: MARK_URL, alt: '' }), wordmark(), h('a', { href: '/about', class: 'aboutlink' }, 'About RosterPulse'));
+const ICON_URL = '/icon.svg?v=__BUILD__', MARK_URL = '/mark.svg?v=__BUILD__';   // icon = the glowing tile (Home Screen and inside the app); mark = the logo on its own (About and Privacy pages)
+const brandFoot = () => h('div', { class: 'bfoot' }, h('img', { src: ICON_URL, alt: '' }), wordmark(), h('a', { href: '/about', class: 'aboutlink' }, 'About RosterPulse'));
 const fmtDate = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 
