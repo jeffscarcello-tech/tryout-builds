@@ -9,7 +9,7 @@ const ctx = { console, JSON, Date, Math, Map, Set, String, Object, Array, parseI
   localStorage: { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } },
   window: { addEventListener() { } }, document: { addEventListener() { }, hidden: false }, toast() { } };
 vm.createContext(ctx);
-vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind, computeResults, notesFor, convertScale, hasSkillScores, scaleMax, skillApplies, skillChoices };', ctx);
+vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind, computeResults, notesFor, convertScale, hasSkillScores, scaleMax, skillApplies, skillChoices, scaleLo, scaleHi, useSlider, scaleLabel };', ctx);
 const T = ctx.__t;
 let n = 0; const ok = m => { n++; console.log('ok', n, m); };
 
@@ -113,4 +113,12 @@ const hk2 = T.newEvent('Hk', 'hockey'); const ch = T.skillChoices(hk2);
 assert.equal(ch.length, hk2.form.skills.length + hk2.form.alt.skills.length + hk2.form.tests.length); assert.ok(ch.some(([k, l]) => /\(goalies\)$/.test(l))); assert.ok(ch[ch.length - 1][0].test); ok('skill menu: skills, goalie skills, then tests');
 const fwd = { pos: 'Forward' }, gk = { pos: 'Goalie' };
 assert.ok(T.skillApplies(hk2, fwd, hk2.form.skills[0].id)); assert.ok(!T.skillApplies(hk2, gk, hk2.form.skills[0].id)); assert.ok(T.skillApplies(hk2, gk, hk2.form.alt.skills[0].id)); assert.ok(!T.skillApplies(hk2, fwd, hk2.form.alt.skills[0].id)); assert.ok(T.skillApplies(hk2, gk, hk2.form.tests[0].id)); ok('goalie skills only list goalies; tests list everyone');
+// custom scales
+assert.equal(T.scaleValues({ scale: '7' }).length, 7); assert.ok(!T.useSlider({ scale: '10' })); assert.ok(T.useSlider({ scale: '100' })); assert.ok(!T.useSlider({ scale: 'pcm' })); ok('up to 10 choices are buttons; more gets the slider');
+assert.equal(T.scaleLo({ scale: '100', scaleMin: 0 }), 0); assert.equal(T.scaleHi({ scale: '100', scaleMin: 0 }), 100); assert.equal(T.scaleLabel({ scale: '50' }), '1 to 50'); assert.equal(T.scaleLabel({ scale: '100', scaleMin: 0 }), '0 to 100'); ok('custom scale range and label');
+const C1 = T.newEvent('Custom', 'volleyball'); T.ensureDays(C1); const kb = C1.form.skills[0].id; C1.scores = { ['e|p|' + kb + '|d1']: { id: '1', v: 4, t: 1 }, ['e|q|' + kb + '|d1']: { id: '2', v: 1, t: 1 } };
+T.convertScale(C1, '5', '100', 1, 0); assert.deepEqual([C1.scores['e|p|' + kb + '|d1'].v, C1.scores['e|q|' + kb + '|d1'].v], [75, 0]); ok('1 to 5 into 0 to 100 (4 -> 75, 1 -> 0)');
+T.convertScale(C1, '100', '5', 0, 1); assert.deepEqual([C1.scores['e|p|' + kb + '|d1'].v, C1.scores['e|q|' + kb + '|d1'].v], [4, 1]); ok('and back to 1 to 5');
+C1.form.scale = '100'; C1.form.scaleMin = 0; C1.players = [{ id: 'p', num: '1', name: 'P' }]; C1.scores = { ['e|p|' + kb + '|d1']: { id: '1', v: 73, t: 1 } };
+let CR = T.computeResults(C1, 'all'); assert.equal(Math.round(CR.rows[0].pct), 73); assert.equal(CR.skMax, 100); ok('results on a 0 to 100 scale');
 console.log('ALL', n, 'UNIT TESTS PASSED');

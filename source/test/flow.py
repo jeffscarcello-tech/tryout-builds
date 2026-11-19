@@ -177,6 +177,29 @@ def run(p, name, vp, mobile):
     assert vals and max(vals) <= 5 and min(vals) >= 1, vals
     pg.locator('.seg button', has_text='1 to 10').click(); pg.locator('.sheet').last.locator('button', has_text='Keep the old scale').click(); time.sleep(0.2)
     assert pg.locator('.seg button.on', has_text='1 to 5').count() == 1, 'keep the old scale = no change'
+    # custom scale 0 to 100 with slider, − / + and number box
+    pg.locator('.seg button', has_text='Custom').click(); sheet().locator('button.chip', has_text='0').first.click(); sheet().locator('input.inp').fill('100')
+    sheet().locator('button', has_text='Use this scale').click(); pg.locator('.sheet').last.locator('button', has_text='Convert and change').click(); time.sleep(0.3)
+    assert pg.locator('.seg button.on', has_text='0 to 100').count() == 1
+    pg.locator('.seg button', has_text='Players').click(); pg.locator('.prow2', has_text='Sam L').click(); pg.wait_for_selector('.pinfo')
+    pg.locator('button', has_text='Score this player').click(); pg.wait_for_selector('.srange')
+    srow = pg.locator('.srow', has_text='Serving').first
+    srow.locator('button[aria-label$="plus one"]').click(); time.sleep(0.15); srow = pg.locator('.srow', has_text='Serving').first
+    assert srow.locator('.snum').input_value() == '50', srow.locator('.snum').input_value()   # empty + starts at the middle
+    srow.locator('button[aria-label$="plus one"]').click(); time.sleep(0.15); srow = pg.locator('.srow', has_text='Serving').first; assert srow.locator('.snum').input_value() == '51'
+    srow.locator('button[aria-label$="minus one"]').click(); srow = pg.locator('.srow', has_text='Serving').first; srow.locator('button[aria-label$="minus one"]').click(); time.sleep(0.15)
+    srow = pg.locator('.srow', has_text='Serving').first; assert srow.locator('.snum').input_value() == '49'
+    srow.locator('.snum').fill('120'); srow.locator('.snum').press('Tab'); time.sleep(0.15); srow = pg.locator('.srow', has_text='Serving').first; assert srow.locator('.snum').input_value() == '100', 'clamped to the top'
+    srow.locator('.srange').evaluate("e => { e.value = 77; e.dispatchEvent(new Event('input')); e.dispatchEvent(new Event('change')); }"); time.sleep(0.15)
+    srow = pg.locator('.srow', has_text='Serving').first; assert srow.locator('.snum').input_value() == '77', 'slider sets the score'
+    shot('17-slider')
+    srow.locator('button[aria-label$="clear"]').click(); time.sleep(0.15); assert pg.locator('.srow', has_text='Serving').first.locator('.snum').input_value() == ''
+    srow = pg.locator('.srow', has_text='Serving').first; srow.locator('.snum').fill('64'); srow.locator('.snum').press('Tab'); time.sleep(0.15)
+    pg.click('button[aria-label="Back"]'); pg.wait_for_selector('.pinfo'); assert '64' in pg.inner_text('main')
+    pg.click('button[aria-label="Back"]'); pg.wait_for_selector('text=Import list')
+    pg.locator('.seg button', has_text='Form').click(); pg.wait_for_selector('text=Measured tests')
+    pg.locator('.seg button', has_text='1 to 5').click(); pg.locator('.sheet').last.locator('button', has_text='Convert and change').click(); time.sleep(0.3)
+    assert pg.locator('.seg button.on', has_text='1 to 5').count() == 1
     pg.locator('.seg button', has_text='Form').click(); pg.wait_for_selector('text=Save as my template')
     # save as template, then new event from it
     pg.click('text=Save as my template'); sheet().locator('input.inp').fill('My VB form'); sheet().locator('button', has_text='Save').last.click(); time.sleep(0.3)

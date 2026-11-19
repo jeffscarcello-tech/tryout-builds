@@ -304,7 +304,9 @@ function formTab(ev) {
   const f = ev.form, sp = sportById(ev.sport);
   return [
     h('p', { class: 'note' }, 'This is what evaluators score. Changes here apply to this event only. Tap a skill to rename it, the ×1 button to weight it, and the arrows to reorder.'),
-    sect('Scale'), h('div', { class: 'seg' }, SCALES.map(([k, l]) => h('button', { class: f.scale === k ? 'on' : '', onclick: () => changeScale(ev, k) }, l))),
+    sect('Scale'), h('div', { class: 'seg' }, SCALES.map(([k, l]) => h('button', { class: f.scale === k ? 'on' : '', onclick: () => changeScale(ev, k, 1) }, l)),
+      h('button', { class: !['5', '10', 'pcm'].includes(f.scale) ? 'on' : '', onclick: () => customScaleSheet(ev) }, !['5', '10', 'pcm'].includes(f.scale) ? scaleLabel(f) : 'Custom')),
+    useSlider(f) ? h('p', { class: 'note', style: 'margin-top:6px' }, 'Evaluators get a slider and a number box with − and + for this scale.') : null,
     skillEditor(ev, f.skills, f.alt ? 'Skills (everyone except ' + f.alt.pos.toLowerCase() + 's)' : 'Skills'),
     f.alt ? [skillEditor(ev, f.alt.skills, f.alt.pos + ' skills'),
       h('button', { class: 'btn sm ghost', style: 'margin-top:8px', onclick: async () => { if (await confirmBox({ title: 'Use one skill list for everyone?', message: 'The ' + f.alt.pos.toLowerCase() + ' list is removed.', ok: 'Use one list' })) { f.alt = null; touch(ev); render(); } } }, 'Use one list for everyone')] : null,
@@ -332,15 +334,35 @@ function formTab(ev) {
   ];
 }
 /* changing the scale after scoring: offer to convert the scores so each keeps its relative place */
-async function changeScale(ev, to) {
-  const f = ev.form, from = f.scale; if (from === to) return;
+async function changeScale(ev, to, toLo) {
+  const f = ev.form, from = f.scale, fromLo = scaleLo(f);
+  if (to !== 'pcm' && !['5', '10'].includes(to)) toLo = toLo === 0 ? 0 : 1; else toLo = 1;
+  if (from === to && fromLo === toLo) return;
   if (hasSkillScores(ev)) {
-    const ex = to === 'pcm' ? 'top scores become +, middle scores ✓, the lowest −' : from === 'pcm' ? '+ becomes ' + scaleMax(to) + ', ✓ becomes ' + Math.round(1 + (scaleMax(to) - 1) / 2) : '4 of ' + scaleMax(from) + ' becomes ' + Math.round(1 + 3 * (scaleMax(to) - 1) / (scaleMax(from) - 1)) + ' of ' + scaleMax(to);
-    const ok = await confirmBox({ title: 'Convert the scores already entered?', message: 'Scores keep about the same place on the new scale (for example ' + ex + '). They are rounded, so changing back may not give the exact same numbers.', ok: 'Convert and change', cancel: 'Keep the old scale' });
+    const name = (sc, lo) => sc === 'pcm' ? '+ / ✓ / −' : lo + ' to ' + scaleMax(sc);
+    const ex = to === 'pcm' ? 'top scores become +, middle scores ✓, the lowest −' : from === 'pcm' ? '+ becomes ' + scaleMax(to) + ', − becomes ' + toLo : scaleMax(from) + ' becomes ' + scaleMax(to) + ' and the middle stays in the middle';
+    const ok = await confirmBox({ title: 'Convert the scores already entered?', message: 'Changing from ' + name(from, fromLo) + ' to ' + name(to, toLo) + '. Scores keep about the same place on the new scale (' + ex + '). They are rounded, so changing back may not give the exact same numbers.', ok: 'Convert and change', cancel: 'Keep the old scale' });
     if (!ok) return;
-    const n = convertScale(ev, from, to); toast(plural(n, 'score', 'scores') + ' converted.');
+    const n = convertScale(ev, from, to, fromLo, toLo); toast(plural(n, 'score', 'scores') + ' converted.');
   }
-  f.scale = to; touch(ev); render();
+  f.scale = to; if (to === 'pcm' || to === '5' || to === '10') delete f.scaleMin; else f.scaleMin = toLo; touch(ev); render();
+}
+/* a custom scale: lowest 0 or 1, highest up to 1000 (more than 10 choices gets a slider) */
+function customScaleSheet(ev) {
+  const f = ev.form, isCustom = !['5', '10', 'pcm'].includes(f.scale);
+  let lo = isCustom ? scaleLo(f) : 1;
+  openSheet((s, api) => {
+    const hi = h('input', { class: 'inp', inputmode: 'numeric', value: isCustom ? String(scaleHi(f)) : '100', maxlength: '4', style: 'max-width:140px' });
+    const quick = h('div', { class: 'chips' }, ['7', '20', '50', '100'].map(x => h('button', { class: 'chip', type: 'button', onclick: () => { hi.value = x; } }, x)));
+    s.append(h('h2', null, 'Custom scale'), h('div', { class: 'stack' },
+      field('Lowest score', chipPick([['1', '1'], ['0', '0']], String(lo), v => { lo = +v; }, false)),
+      field('Highest score', h('div', { class: 'stack', style: 'gap:8px' }, hi, quick), 'Up to 1000. More than 10 choices gives evaluators a slider and a number box with − and +.')),
+      h('div', { class: 'acts' }, h('button', { class: 'btn', onclick: () => api.close() }, 'Cancel'), h('button', { class: 'btn primary', onclick: async () => {
+        const top = Math.round(+hi.value);
+        if (!(top >= lo + 2 && top <= 1000)) { toast('Pick a highest score between ' + (lo + 2) + ' and 1000.'); return; }
+        api.close(); await changeScale(ev, String(top), lo);
+      } }, 'Use this scale')));
+  });
 }
 function testSheet(ev, t) {
   const isNew = !t, d = Object.assign({ name: '', unit: 's', better: 'low' }, t || {});

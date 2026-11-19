@@ -11,7 +11,39 @@
    ===================================================================== */
 const PCM = [[3, '+'], [2, '✓'], [1, '−']];
 const COMBINE = [['avg', 'Average the days'], ['total', 'Add the days'], ['carry', 'Carry scores forward']];
-function scaleValues(scale) { return scale === 'pcm' ? PCM : Array.from({ length: scale === '10' ? 10 : 5 }, (_, i) => [i + 1, String(i + 1)]); }
+/* scales: '5', '10', 'pcm' (+ / ✓ / − stored as 3 / 2 / 1) or a custom top number like '100'; form.scaleMin is 0 or 1 (custom only) */
+const scaleLo = f => f.scale === 'pcm' ? 1 : (f.scaleMin === 0 ? 0 : 1);
+const scaleHi = f => f.scale === 'pcm' ? 3 : (parseInt(f.scale, 10) || 5);
+const scaleLabel = f => f.scale === 'pcm' ? '+ / ✓ / −' : scaleLo(f) + ' to ' + scaleHi(f);
+function scaleValues(f) {
+  if (typeof f === 'string') f = { scale: f };
+  if (f.scale === 'pcm') return PCM;
+  const lo = scaleLo(f), hi = scaleHi(f); return Array.from({ length: hi - lo + 1 }, (_, i) => [lo + i, String(lo + i)]);
+}
+const useSlider = f => f.scale !== 'pcm' && scaleHi(f) - scaleLo(f) + 1 > 10;
+/* the control for one score: buttons for up to 10 choices; above that a number box with − and +, and a slider */
+function scoreControl(ev, p, k, sid, label) {
+  const f = ev.form, cur = shownScore(ev, p.id, k.id, sid), own = () => getScore(ev, p.id, k.id, sid);
+  const commit = v => { setScore(ev, p.id, k.id, sid, v); render(); };
+  if (!useSlider(f)) {
+    const vals = scaleValues(f);
+    return h('div', { class: 'sbtns', style: 'grid-template-columns:repeat(' + Math.min(vals.length, 5) + ',1fr)' }, vals.map(([v, l]) => h('button', { class: 'sb' + (cur.v === v ? (cur.carried ? ' carried' : ' on') : ''), 'aria-label': label + ' ' + l, onclick: () => commit(own() === v ? null : v) }, l)));
+  }
+  const lo = scaleLo(f), hi = scaleHi(f), mid = Math.round((lo + hi) / 2), clamp = v => Math.max(lo, Math.min(hi, Math.round(v)));
+  const base = () => { const o = own(); return o != null ? o : cur.v != null ? cur.v : null; };
+  const num = h('input', { class: 'inp snum' + (cur.carried ? ' carried' : ''), inputmode: 'numeric', value: cur.v == null ? '' : String(cur.v), placeholder: '–', 'aria-label': label + ' score' });
+  const range = h('input', { type: 'range', class: 'srange' + (cur.v == null ? ' unset' : ''), min: String(lo), max: String(hi), step: '1', value: String(cur.v == null ? mid : cur.v), 'aria-label': label + ' slider' });
+  range.addEventListener('input', () => { num.value = range.value; range.classList.remove('unset'); });
+  range.addEventListener('change', () => commit(clamp(+range.value)));
+  num.addEventListener('change', () => { const v = parseFloat(num.value); commit(isFinite(v) ? clamp(v) : null); });
+  return h('div', { class: 'slide' },
+    h('div', { class: 'srow2' },
+      h('button', { class: 'sb pm', 'aria-label': label + ' minus one', onclick: () => { const b = base(); commit(clamp(b == null ? mid : b - 1)); } }, '−'),
+      num,
+      h('button', { class: 'sb pm', 'aria-label': label + ' plus one', onclick: () => { const b = base(); commit(clamp(b == null ? mid : b + 1)); } }, '+'),
+      own() != null ? h('button', { class: 'mini', 'aria-label': label + ' clear', onclick: () => commit(null) }, icon('x')) : null),
+    h('div', { class: 'srange-wrap' }, h('span', null, lo), range, h('span', null, hi)));
+}
 const me = () => { if (!S.settings.me) { S.settings.me = { id: uid('v'), name: '' }; save(); } return S.settings.me; };
 const sKey = (by, pid, kid, sid) => by + '|' + pid + '|' + (kid || '') + '|' + sid;
 
@@ -141,7 +173,7 @@ function scoreBySkill(ev, sid, list) {
   if (!choices.length) return h('div', { class: 'empty' }, 'This form has no skills. Add some in the Form tab.');
   const pick = S.settings.skillPick = S.settings.skillPick || {};
   let ci = choices.findIndex(([k]) => k.id === pick[ev.id]); if (ci < 0) ci = 0;
-  const [k, label] = choices[ci], vals = scaleValues(ev.form.scale);
+  const [k, label] = choices[ci];
   const setK = i => { pick[ev.id] = choices[i][0].id; save(); render(); window.scrollTo(0, 0); };
   const rows = list.filter(p => skillApplies(ev, p, k.id));
   const done = rows.filter(p => shownScore(ev, p.id, k.id, sid).v != null).length;
@@ -152,9 +184,7 @@ function scoreBySkill(ev, sid, list) {
       ctl = h('input', { class: 'inp', inputmode: 'decimal', value: cur.v == null ? '' : String(cur.v), placeholder: k.unit || '', style: 'max-width:130px' + (cur.carried ? ';color:var(--muted)' : ''), 'aria-label': (p.num || '') + ' ' + k.name });
       ctl.addEventListener('change', () => { const v = parseFloat(String(ctl.value).replace(',', '.')); setScore(ev, p.id, k.id, sid, isFinite(v) ? Math.round(v * 1000) / 1000 : null); render(); });
     } else {
-      ctl = h('div', { class: 'sbtns n' + vals.length }, vals.map(([v, l]) => h('button', { class: 'sb' + (cur.v === v ? (cur.carried ? ' carried' : ' on') : ''), 'aria-label': (p.num ? '#' + p.num + ' ' : '') + k.name + ' ' + l, onclick: () => {
-        const own = getScore(ev, p.id, k.id, sid); setScore(ev, p.id, k.id, sid, own === v ? null : v); render();
-      } }, l)));
+      ctl = scoreControl(ev, p, k, sid, (p.num ? '#' + p.num + ' ' : '') + k.name);
     }
     return h('div', { class: 'srow skrow' + (p.present === false ? ' out' : '') },
       h('div', { class: 'shead' }, h('span', { class: 'jn' }, p.num || '–'), h('div', { class: 'grow', style: 'min-width:0' }, h('div', { class: 'pnm ellip' }, p.name || 'No name'), p.pos ? h('div', { class: 'pmeta' }, p.pos) : null),
@@ -177,7 +207,7 @@ function viewScorePlayer(evId, sid, gid, pid) {
   if (!ev || !p) return viewScoreList(evId, sid, gid);
   ensureDays(ev); W = wordsOf(ev);
   const day = dayById(ev, sid); sid = day.id;
-  const ks = skillsFor(ev, p), vals = scaleValues(ev.form.scale), pr = progressOf(ev, p, sid);
+  const ks = skillsFor(ev, p), pr = progressOf(ev, p, sid);
   const list = groupPlayers(ev, gid), i = list.findIndex(x => x.id === p.id);
   const nextUnscored = list.slice(i + 1).concat(list.slice(0, i)).find(x => { const q = progressOf(ev, x, sid); return q.done < q.all; });
   const noteBtn = k => skillNoteBtn(ev, p, k, sid);
@@ -186,10 +216,7 @@ function viewScorePlayer(evId, sid, gid, pid) {
     return h('div', { class: 'srow' },
       h('div', { class: 'shead' }, h('div', { class: 'sname grow' }, k.name), cur.carried ? h('span', { class: 'carry' }, 'from ' + cur.carried.name) : null, noteBtn(k)),
       n ? h('div', { class: 'snote' }, n) : null,
-      h('div', { class: 'sbtns n' + vals.length }, vals.map(([v, l]) => h('button', { class: 'sb' + (cur.v === v ? (cur.carried ? ' carried' : ' on') : ''), 'aria-label': k.name + ' ' + l, onclick: () => {
-        const own = getScore(ev, p.id, k.id, sid);
-        setScore(ev, p.id, k.id, sid, own === v ? null : v); render();
-      } }, l))));
+      scoreControl(ev, p, k, sid, k.name));
   };
   const testRow = t => {
     const cur = shownScore(ev, p.id, t.id, sid), n = getNote(ev, p.id, t.id, sid);

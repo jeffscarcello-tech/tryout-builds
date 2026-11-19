@@ -9,7 +9,7 @@
    Tests: each evaluator's days combined the same way except total (uses best); across evaluators the best result.
    Disagreement: two or more evaluators whose numbers for a skill are 40% of the scale range or more apart.
    ===================================================================== */
-const scaleMax = sc => sc === 'pcm' ? 3 : sc === '10' ? 10 : 5;
+const scaleMax = sc => sc === 'pcm' ? 3 : (parseInt(sc, 10) || 5);
 const r1 = x => Math.round(x * 10) / 10;
 function allSkills(ev) { const f = ev.form; return f.alt ? f.skills.concat(f.alt.skills) : f.skills.slice(); }
 function evaluatorsOf(ev) { const set = new Set(); for (const k in ev.scores || {}) if (ev.scores[k] && ev.scores[k].v != null) set.add(k.split('|')[0]); return [...set]; }
@@ -35,10 +35,10 @@ const better = (t, a, b) => a == null ? b : b == null ? a : (t.better === 'low' 
 /* day: 'all' for the combined result, or one day id */
 function computeResults(ev, day) {
   ensureDays(ev);
-  const f = ev.form, mx = scaleMax(f.scale), dayIds = day && day !== 'all' ? [day] : ev.sessions.map(d => d.id);
+  const f = ev.form, mx = scaleHi(f), dayIds = day && day !== 'all' ? [day] : ev.sessions.map(d => d.id);
   const rule = dayIds.length > 1 ? (f.combine || 'avg') : 'avg';
   const skMax = rule === 'total' ? mx * dayIds.length : mx;
-  const spreadFlag = f.scale === 'pcm' ? 2 : (mx - 1) * 0.4;   // 1 to 5: 2 apart; 1 to 10: 4 apart; + / ✓ / −: + against −
+  const spreadFlag = f.scale === 'pcm' ? 2 : (mx - scaleLo(f)) * 0.4;   // 1 to 5: 2 apart; 1 to 10: 4 apart; + / ✓ / −: + against −
   const rows = ev.players.map(p => {
     const ks = skillsFor(ev, p), skills = {}, tests = {}, evs = new Set();
     let wsum = 0, wpct = 0, flagged = [];
@@ -87,12 +87,13 @@ function notesFor(ev, pid) {
 }
 
 /* ---------- convert scores when the scale changes (keeps each score's relative place) ---------- */
-function convertScale(ev, from, to) {
+function convertScale(ev, from, to, fromLo = 1, toLo = 1) {
   const a = scaleMax(from), b = scaleMax(to), ids = new Set(allSkills(ev).map(k => k.id)); let n = 0;
+  if (from === 'pcm') fromLo = 1; if (to === 'pcm') toLo = 1;
   for (const key in ev.scores || {}) {
     const r = ev.scores[key]; if (!r || r.v == null || !ids.has(key.split('|')[2])) continue;
-    const v = Math.min(Math.max(r.v, 1), a), nv = Math.round(1 + (v - 1) * (b - 1) / (a - 1));
-    ev.scores[key] = { id: uid('r'), v: Math.min(Math.max(nv, 1), b), t: Date.now() }; n++;
+    const v = Math.min(Math.max(r.v, fromLo), a), nv = Math.round(toLo + (v - fromLo) * (b - toLo) / (a - fromLo));
+    ev.scores[key] = { id: uid('r'), v: Math.min(Math.max(nv, toLo), b), t: Date.now() }; n++;
   }
   return n;
 }
