@@ -44,6 +44,8 @@ def main():
     shell = fill(read('shell.html'))
     # the privacy text is written once (src/pages/privacy.html) and shown both as a page and inside the app
     privacy_page = read('pages', 'privacy.html'); about_page = read('pages', 'about.html')
+    ver = lambda page: re.sub(r'(/icon\.svg|/apple-touch-icon\.png|/icon-512\.png)"', lambda m: m.group(1) + '?v=' + build + '"', page)
+    privacy_page, about_page = ver(privacy_page), ver(about_page)
     m = re.search(r'<main id="doc">(.*?)</main>', privacy_page, re.S)
     if not m:
         sys.exit('privacy page has no <main id="doc">')
@@ -56,10 +58,10 @@ def main():
         'start_url': '/', 'scope': '/', 'display': 'standalone', 'orientation': 'any', 'lang': 'en',
         'background_color': '#0b0b0e', 'theme_color': '#0b0b0e', 'categories': ['sports'],
         'icons': [
-            {'src': '/icon-192.png', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'any'},
-            {'src': '/icon-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'any'},
-            {'src': '/icon-maskable-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'maskable'},
-            {'src': '/icon.svg', 'sizes': 'any', 'type': 'image/svg+xml'}]}, separators=(',', ':'))
+            {'src': '/icon-192.png?v=' + build, 'sizes': '192x192', 'type': 'image/png', 'purpose': 'any'},
+            {'src': '/icon-512.png?v=' + build, 'sizes': '512x512', 'type': 'image/png', 'purpose': 'any'},
+            {'src': '/icon-maskable-512.png?v=' + build, 'sizes': '512x512', 'type': 'image/png', 'purpose': 'maskable'},
+            {'src': '/icon.svg?v=' + build, 'sizes': 'any', 'type': 'image/svg+xml'}]}, separators=(',', ':'))
 
     # checks: no placeholder left, version inside the app matches the file, cache name matches
     for label_, text in (('html', html), ('sw', sw)):

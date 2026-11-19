@@ -1,7 +1,7 @@
 /* __NAME__ service worker: keeps the app available with no signal.
    Navigations are answered from cache instantly and refreshed in the background. */
 const V = '__CACHE__';
-const SHELL = ['/', '/manifest.webmanifest', '/icon.svg'];
+const SHELL = ['/', '/manifest.webmanifest', '/icon.svg?v=__BUILD__'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('message', e => { if (e.data === 'skip') self.skipWaiting(); });

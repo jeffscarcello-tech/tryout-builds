@@ -12,9 +12,14 @@ header{display:flex;align-items:center;justify-content:space-between;padding:18p
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:17px;padding:14px 22px;border-radius:14px;text-decoration:none;border:1px solid #3a3a46;color:#fff;background:#17171c}
 .btn.p{background:linear-gradient(180deg,#ffa04a,#ff8a1f);border-color:transparent;color:#1c0d00;box-shadow:0 8px 28px rgba(255,138,31,.25)}
 .btn.sm{padding:9px 14px;font-size:15px;border-radius:12px}
-.hero{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center;padding:36px 0 50px}
+.hero{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center;padding:40px 0 50px}
 h1{font-size:clamp(36px,6vw,60px);line-height:1.02;letter-spacing:-.035em;margin:0 0 16px;font-weight:900}
-h1 em{font-style:normal;color:#ff8a1f}
+.welcome{text-align:center;padding:34px 0 30px;border-bottom:1px solid #1f1f26}
+.wlogo{width:148px;height:148px;display:block;margin:0 auto 22px;filter:drop-shadow(0 18px 50px rgba(255,138,31,.35))}
+.welcome h1{font-size:clamp(40px,8vw,76px);margin:0 0 12px}.welcome h1 span{white-space:nowrap}.welcome h1 b{color:#ff8a1f}
+.welcome p{margin:0 auto;color:#c4c4cf;font-size:clamp(18px,2.6vw,22px);max-width:30em}
+.ht{font-size:clamp(30px,4.6vw,46px);line-height:1.05;letter-spacing:-.03em;margin:0 0 16px;font-weight:900}
+.ht em{font-style:normal;color:#ff8a1f}
 .lead{font-size:19px;color:#c4c4cf;margin:0 0 24px;max-width:34em}
 .ctas{display:flex;gap:10px;flex-wrap:wrap}.small{color:#8d8d99;font-size:14px;margin-top:12px}
 /* phone mock */
@@ -48,9 +53,15 @@ footer a{color:#c4c4cf}
 <div class="wrap">
 <header><a class="brand" href="/about"><img src="/icon.svg" alt=""><span>Roster<b>Pulse</b></span></a><a class="btn sm" href="/">Open the app</a></header>
 
+<div class="welcome">
+<img class="wlogo" src="/icon.svg" alt="RosterPulse logo" width="148" height="148">
+<h1>Welcome to <span>Roster<b>Pulse</b></span></h1>
+<p>Tryouts and camps for every team sport, made simple.</p>
+</div>
+
 <div class="hero">
 <div>
-<h1>Tryouts and camps, scored from <em>every coach's phone</em>.</h1>
+<h2 class="ht">Tryouts and camps, scored from <em>every coach's phone</em>.</h2>
 <p class="lead">Load your roster, share a code with your coaches, and score players by jersey number. Scores combine as they come in, so the ranked list and player cards are ready when the last session ends.</p>
 <div class="ctas"><a class="btn p" href="/#/demo">Try the demo</a><a class="btn" href="/">Start an event</a></div>
 <p class="small">Free while in testing. Works in any phone browser; add it to your home screen like an app.</p>

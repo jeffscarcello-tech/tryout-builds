@@ -76,7 +76,7 @@ def run(p, name, vp, mobile):
     pg.locator('.item', has_text='Show tips again').click(); time.sleep(0.2); assert pg.locator('.tip').count() == 1, 'tips back'
 
     # pages
-    pg.locator('.bfoot a', has_text='About RosterPulse').click(); pg.wait_for_selector('h1'); assert '/about' in pg.url and 'every coach' in pg.inner_text('h1')
+    pg.locator('.bfoot a', has_text='About RosterPulse').click(); pg.wait_for_selector('h1'); assert '/about' in pg.url and 'Welcome to' in pg.inner_text('h1') and 'every coach' in pg.inner_text('.ht')
     assert pg.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1'), 'about page fits the screen'
     shot('7-about')
     pg.goto(URL + 'privacy'); pg.wait_for_selector('h1'); assert 'Privacy' in pg.inner_text('h1')

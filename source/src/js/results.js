@@ -301,7 +301,7 @@ function cardReport(ev, pid) {
 /* the report on screen (white paper) */
 function reportHtml(rep) {
   return h('div', { class: 'paper' + (rep.landscape ? ' wide' : '') },
-    h('div', { class: 'pbrand' }, h('img', { src: '/icon.svg', alt: '' }), h('b', null, 'RosterPulse')), h('h1', null, rep.title), rep.subtitle ? h('p', { class: 'psub' }, rep.subtitle) : null,
+    h('div', { class: 'pbrand' }, h('img', { src: ICON_URL, alt: '' }), h('b', null, 'RosterPulse')), h('h1', null, rep.title), rep.subtitle ? h('p', { class: 'psub' }, rep.subtitle) : null,
     rep.blocks.map(b => b.h ? h('h2', null, b.h) : b.p ? h('p', null, b.p) : b.kv ? h('table', { class: 'pkv' }, b.kv.map(([k, v]) => h('tr', null, h('td', null, k), h('th', null, v))))
       : h('div', { class: 'ptwrap' }, h('table', { class: 'ptbl' }, h('thead', null, h('tr', null, b.table.head.map(x => h('th', null, x)))),
         h('tbody', null, b.table.rows.map((r, i) => h('tr', { class: b.table.line && i === b.table.line - 1 ? 'lineafter' : null }, r.map((c, j) => h('td', { class: b.table.align && b.table.align[j] === 'r' ? 'r' : null }, c)))))))),
