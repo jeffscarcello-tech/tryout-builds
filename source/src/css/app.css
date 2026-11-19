@@ -1,5 +1,5 @@
 /* ---------- RosterPulse additions (on top of the ShotPulse look) ---------- */
-.applogo{width:30px;height:30px;border-radius:8px;flex:none}
+.applogo{width:38px;height:38px;flex:none}
 .wm{font-family:var(--disp);font-weight:900;font-size:20px;letter-spacing:-.02em}
 .wm b{color:var(--accent);font-weight:900}
 .hero{padding:6px 2px 4px}
@@ -120,7 +120,7 @@ textarea.inp{min-height:180px;padding:12px 14px;line-height:1.45;font-family:inh
 .ptbl tr.lineafter td{border-bottom:2.5px solid #ff8a1f}
 .pkv td{color:#666;padding:2px 14px 2px 0} .pkv th{text-align:left;color:#111;padding:2px 0}
 .pbrand{display:flex;align-items:center;gap:6px;margin-bottom:6px}
-.pbrand img{width:20px;height:20px}
+.pbrand img{width:24px;height:24px}
 .pbrand b{font-size:13px;color:#ff8a1f}
 .pfoot{margin-top:14px!important;font-size:10px;color:#888!important}
 @media print{
@@ -156,11 +156,11 @@ textarea.inp{min-height:180px;padding:12px 14px;line-height:1.45;font-family:inh
 .jn.big{min-width:56px;height:52px;font-size:22px}
 /* ---------- brand ---------- */
 .bfoot{display:flex;align-items:center;justify-content:center;gap:8px;margin:28px 0 6px;color:var(--muted);font-size:12px;font-weight:700}
-.bfoot img{width:22px;height:22px;border-radius:6px}
+.bfoot img{width:28px;height:28px}
 .bfoot .wm{font-size:15px;color:var(--text)}
 .bfoot .aboutlink{color:var(--muted);text-decoration:underline;text-underline-offset:3px}.bfoot .aboutlink:before{content:'·';margin-right:8px;display:inline-block;text-decoration:none}
 .pbrand{display:flex;align-items:center;gap:6px;margin-bottom:6px}
-.pbrand img{width:20px;height:20px}
+.pbrand img{width:24px;height:24px}
 .pbrand b{font-size:14px;color:#ff8a1f}
 .pfoot{margin-top:10px;font-size:10px;color:#666}
 @media print{ body:not(.printing) .bfoot{display:flex!important} body:not(.printing) .bfoot .wm b{color:#ff8a1f!important} }

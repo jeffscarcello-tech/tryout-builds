@@ -44,7 +44,7 @@ def main():
     shell = fill(read('shell.html'))
     # the privacy text is written once (src/pages/privacy.html) and shown both as a page and inside the app
     privacy_page = read('pages', 'privacy.html'); about_page = read('pages', 'about.html')
-    ver = lambda page: re.sub(r'(/icon\.svg|/apple-touch-icon\.png|/icon-512\.png)"', lambda m: m.group(1) + '?v=' + build + '"', page)
+    ver = lambda page: re.sub(r'(/icon\.svg|/mark\.svg|/apple-touch-icon\.png|/icon-512\.png)"', lambda m: m.group(1) + '?v=' + build + '"', page)
     privacy_page, about_page = ver(privacy_page), ver(about_page)
     m = re.search(r'<main id="doc">(.*?)</main>', privacy_page, re.S)
     if not m:
@@ -76,6 +76,7 @@ def main():
         'icon_svg': read('img', 'icon.svg'), 'i192': b64('img', 'icon-192.png'), 'i512': b64('img', 'icon-512.png'),
         'apple': b64('img', 'apple-touch-icon.png'),
         'files': {'/icon-maskable-512.png': {'type': 'image/png', 'b64': b64('img', 'icon-maskable-512.png')},
+                  '/mark.svg': {'type': 'image/svg+xml', 'b64': b64('img', 'mark.svg')},
                   '/about': {'type': 'text/html; charset=utf-8', 'b64': base64.b64encode(about_page.encode()).decode()},
                   '/privacy': {'type': 'text/html; charset=utf-8', 'b64': base64.b64encode(privacy_page.encode()).decode()}}}
     os.makedirs(os.path.join(ROOT, 'dist'), exist_ok=True)
