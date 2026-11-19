@@ -25,7 +25,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) save(
 const eventById = id => S.events.find(e => e.id === id) || null;
 function newEvent(name, sport, form) {
   const ev = { id: uid('e'), name: name || 'New event', sport, created: Date.now(), updated: Date.now(),
-    form: form ? copyForm(form) : formFromSport(sport),
+    form: form ? copyForm(form) : sampleGuides(formFromSport(sport), sport),
     groups: [], players: [] };
   S.events.unshift(ev); save(); return ev;
 }

@@ -2,6 +2,8 @@
 /* =====================================================================
    UI foundation: DOM helper, icons, sheets/modals, toast, router
    ===================================================================== */
+/* replace an element's children, skipping null and flattening lists (native replaceChildren would print "null") */
+const refill = (el, ...kids) => el.replaceChildren(...kids.flat(Infinity).filter(x => x != null && x !== false));
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
   if (attrs) for (const k in attrs) {

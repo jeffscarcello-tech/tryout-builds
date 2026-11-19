@@ -3,13 +3,13 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert';  // loose deepEqual: arrays made inside the vm have a different prototype
 
-const src = ['sports.js', 'store.js', 'score.js', 'results.js', 'pdf.js', 'sync.js', 'checkin.js', 'extras.js'].map(f => readFileSync(new URL('../src/js/' + f, import.meta.url), 'utf8')).join('\n').replace('__PRIVACY_DOC__', '""');
+const src = ['sports.js', 'store.js', 'score.js', 'results.js', 'pdf.js', 'sync.js', 'checkin.js', 'decide.js', 'guides.js', 'install.js', 'extras.js'].map(f => readFileSync(new URL('../src/js/' + f, import.meta.url), 'utf8')).join('\n').replace('__PRIVACY_DOC__', '""');
 const mem = {};
 const ctx = { console, JSON, Date, Math, Map, Set, String, Object, Array, parseInt, setTimeout, clearTimeout,
   localStorage: { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } },
   window: { addEventListener() { } }, document: { addEventListener() { }, querySelectorAll: () => [], hidden: false }, navigator: { onLine: false }, toast() { } };
 vm.createContext(ctx);
-vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind, computeResults, notesFor, convertScale, hasSkillScores, scaleMax, skillApplies, skillChoices, scaleLo, scaleHi, useSlider, scaleLabel, makePdf, pdfText, wrapText, mergeRecs, queued, waitingCount, payloadOf, myId, isShared, checkinFor, setHere, checkMapOf, myGroups, groupPlayers, canCheckIn, makeDemo, computeResults, ensureChecks };', ctx);
+vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind, computeResults, notesFor, convertScale, hasSkillScores, scaleMax, skillApplies, skillChoices, scaleLo, scaleHi, useSlider, scaleLabel, makePdf, pdfText, wrapText, mergeRecs, queued, waitingCount, payloadOf, myId, isShared, checkinFor, setHere, checkMapOf, myGroups, groupPlayers, canCheckIn, makeDemo, computeResults, ensureChecks, mergeOrgCopy, orgPayloadOf, authOf, decisionsOf, setDecision, outcomesOf, decisionsCsv, decisionsReport, guideText, sampleGuides, gkey, hasGuide, applyOrgCopy };', ctx);
 const T = ctx.__t;
 let n = 0; const ok = m => { n++; console.log('ok', n, m); };
 
@@ -168,6 +168,30 @@ assert.ok(T.wrapText('word '.repeat(60), 10, 200).length > 3); ok('long text wra
   const R = T.computeResults(D, 'all'); assert.equal(R.rows.filter(r => r.pct != null).length, 15); assert.ok(R.rows.some(r => r.nEval === 3)); assert.ok(Object.keys(D.evaluators).length === 3);
   assert.ok(!T.checkinFor(D, D.sessions[0].id).isHere(D.players[15])); ok('demo event: 16 players, 15 scored by up to 3 coaches, one not checked in');
   T.S.events = T.S.events.filter(x => x !== D);
+}
+// several organizers, decisions, guides
+{
+  const base = { name: 'A', form: { x: 1 }, line: 3, assign: {}, helpers: [], players: [{ id: 'p1', name: 'One' }, { id: 'p2', name: 'Two' }, { id: 'p3', name: 'Three' }], groups: [{ id: 'g1', name: 'G' }], sessions: [{ id: 'd1' }], names: { o1: 'Owner' } };
+  const mine = JSON.parse(JSON.stringify(base)); mine.players[0].name = 'One (mine)'; mine.players.push({ id: 'p4', name: 'Four' }); mine.players = mine.players.filter(p => p.id !== 'p3'); mine.line = 5;
+  const theirs = JSON.parse(JSON.stringify(base)); theirs.players[1].name = 'Two (theirs)'; theirs.players.push({ id: 'p5', name: 'Five' }); theirs.name = 'B'; theirs.names = { o2: 'Coach Two' };
+  const m = T.mergeOrgCopy(base, mine, theirs);
+  assert.deepEqual(m.players.map(p => p.name).sort(), ['Five', 'Four', 'One (mine)', 'Two (theirs)']); ok('two organizers edit players at once: both changes kept, a delete sticks');
+  assert.equal(m.name, 'B'); assert.equal(m.line, 5); assert.deepEqual(m.names, { o1: 'Owner', o2: 'Coach Two' }); ok('other parts: whoever changed it wins; names are joined');
+  const E = T.newEvent('Dec', 'volleyball'); E.players = [{ id: 'a1', num: '1' }, { id: 'a2', num: '2' }];
+  assert.equal(T.outcomesOf(E).length, 3); T.setDecision(E, 'a1', 'made'); assert.equal(T.decisionsOf(E).get('a1'), 'made');
+  E.decs['other|a1||all'] = { id: 'zz', v: 'cut', t: Date.now() + 1000 }; assert.equal(T.decisionsOf(E).get('a1'), 'cut'); ok('newest decision wins, whichever organizer made it');
+  T.setDecision(E, 'a1', null); assert.equal(T.decisionsOf(E).get('a1'), 'cut'); E.decs['other|a1||all'].t = 1; assert.ok(!T.decisionsOf(E).has('a1')); ok('clearing a decision');
+  T.setDecision(E, 'a2', 'wait'); E.form.outcomes = [{ id: 'made', name: 'Made team' }, { id: 'cut', name: 'Not selected' }]; assert.ok(!T.decisionsOf(E).has('a2')); ok('a removed choice no longer counts');
+  T.setDecision(E, 'a1', 'made'); const R = T.decisionsReport(E); assert.equal(R.blocks[0].h, 'Made team (1)'); assert.ok(!JSON.stringify(R).includes('%')); ok('decision PDF: names per outcome, no scores');
+  assert.ok(T.decisionsCsv(E).includes('Made team')); ok('decision spreadsheet');
+  const k = E.form.skills.find(x => x.name === 'Serving'), kb = E.form.skills.find(x => x.name === 'Blocking');
+  assert.equal(T.guideText(E.form, k, 1), 'Misses most serves'); assert.equal(T.guideText(E.form, kb, 5), 'Standout: among the best here'); ok('new volleyball event has sample guides: skill and general');
+  E.form.scale = '10'; assert.equal(T.guideText(E.form, k, 1), ''); ok('a guide never shows on a scale it was not written for');
+  E.form.scale = '100'; assert.ok(!T.hasGuide(E.form, k)); E.form.scale = '5'; E.form.showGuides = false; assert.equal(T.guideText(E.form, k, 1), ''); ok('no guides on slider scales or when switched off');
+  const H = T.newEvent('Hockey', 'hockey'); assert.ok(T.guideText(H.form, H.form.skills[0], 3)); ok('other sports start with sample guides too');
+  const O = { share: { oid: 'oabc', tok: 'ff' } }; assert.deepEqual(T.authOf(O), { 'X-Org': 'oabc.ff' }); assert.deepEqual(T.authOf({ share: { key: 'k' } }), { 'X-Key': 'k' }); ok('owner and other organizers sign in differently');
+  E.share = { assign: {}, helpers: [] }; E.orgNames = { me1: 'Jeff' }; E.players[0].notes = 'private'; const OP = T.orgPayloadOf(E); assert.equal(OP.players[0].notes, 'private'); assert.deepEqual(OP.names, { me1: 'Jeff' }); assert.equal(T.payloadOf(E).players[0].notes, undefined); ok('organizers get private notes, evaluators never');
+  T.S.events = T.S.events.filter(x => x !== E && x !== H);
 }
 require_fs: { const fs = await import('node:fs'); fs.writeFileSync('/tmp/rp-test.pdf', pdf); }
 console.log('ALL', n, 'UNIT TESTS PASSED');

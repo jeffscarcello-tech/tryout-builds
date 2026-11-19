@@ -1,6 +1,9 @@
 // =====================================================================
 // Tryout app server (Cloudflare Worker). Test site: Worker "tryouttest", D1 database "tryouttest" bound as DB.
 //
+// t4: several organizers per event (the owner invites more with one-time 8-character codes; each gets its own token),
+//     an organizer copy of the event (full roster with private notes, outcomes, team line) shared between organizers only,
+//     team decisions as records (kind 'x', organizers only).
 // t3: check-in records (kind 'c', 1 here / 0 not here; evaluators only when the organizer allows them), evaluator groups
 //     and helpers carried in the event copy, the about and privacy pages are served fresh, abuse counters cleared more often.
 // t2: shared events for several phones. The organizer shares an event (gets a secret organizer key and a 6-letter join code);
@@ -13,11 +16,11 @@
 //
 // Health check: GET /api/health
 // =====================================================================
-const LOADER = 'tr-loader-t3';
+const LOADER = 'tr-loader-t4';
 const APP_KIND = 'tryout';          // only app files built for this app are accepted (a ShotPulse file is refused)
 const ADMIN_SALT = 'tr-admin:';
 
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,PUT,POST,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type,X-Admin,X-Key,X-Eval', 'Access-Control-Max-Age': '86400' };
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,PUT,POST,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type,X-Admin,X-Key,X-Eval,X-Org', 'Access-Control-Max-Age': '86400' };
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...CORS } });
 const html = (body, type, extra = {}) => new Response(body, { headers: { 'Content-Type': type, 'X-Content-Type-Options': 'nosniff', ...extra } });
 const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -124,6 +127,7 @@ async function serveApp(request, env, p) {
    Shared events (several phones)
    ===================================================================== */
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const MAX_ORGS = 20, INVITE_MS = 48 * 3600000;
 const MAX_EVENT = 600000, MAX_RECS_IN = 400, MAX_RECS_OUT = 1500, MAX_RECS_EVENT = 250000, MAX_EVALS = 60;
 const EID_RE = /^[A-Za-z0-9]{6,40}$/, RID_RE = /^[A-Za-z0-9_-]{4,40}$/, ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
 const rnd = (n, chars) => [...crypto.getRandomValues(new Uint8Array(n))].map(x => chars[x % chars.length]).join('');
@@ -136,7 +140,10 @@ async function evInit(db) {
     db.prepare('CREATE TABLE IF NOT EXISTS srec (eid TEXT NOT NULL, id TEXT NOT NULL, kind TEXT NOT NULL, by TEXT NOT NULL, pid TEXT NOT NULL, kid TEXT NOT NULL, sid TEXT NOT NULL, v TEXT, t INTEGER NOT NULL, seq INTEGER NOT NULL, PRIMARY KEY (eid, id))'),
     db.prepare('CREATE INDEX IF NOT EXISTS srec_seq ON srec (eid, seq)'),
     db.prepare('CREATE TABLE IF NOT EXISTS seval (eid TEXT NOT NULL, vid TEXT NOT NULL, tok_hash TEXT NOT NULL, name TEXT NOT NULL, joined INTEGER NOT NULL, seen INTEGER NOT NULL, PRIMARY KEY (eid, vid))'),
-    db.prepare('CREATE TABLE IF NOT EXISTS srate (k TEXT PRIMARY KEY, n INTEGER NOT NULL, win INTEGER NOT NULL)')
+    db.prepare('CREATE TABLE IF NOT EXISTS srate (k TEXT PRIMARY KEY, n INTEGER NOT NULL, win INTEGER NOT NULL)'),
+    db.prepare('CREATE TABLE IF NOT EXISTS sorg (eid TEXT NOT NULL, oid TEXT NOT NULL, tok_hash TEXT NOT NULL, name TEXT NOT NULL, joined INTEGER NOT NULL, seen INTEGER NOT NULL, PRIMARY KEY (eid, oid))'),
+    db.prepare('CREATE TABLE IF NOT EXISTS sinv (code TEXT PRIMARY KEY, eid TEXT NOT NULL, created INTEGER NOT NULL)'),
+    db.prepare('CREATE TABLE IF NOT EXISTS sodata (eid TEXT PRIMARY KEY, data TEXT NOT NULL, rev INTEGER NOT NULL)')
   ]);
   evReady = true;
 }
@@ -163,7 +170,12 @@ async function evWho(db, request, eid) {
   const row = await db.prepare('SELECT key_hash, rev, seq FROM sev WHERE eid = ?1').bind(eid).first();
   if (!row) return { gone: true };
   const key = request.headers.get('X-Key') || '';
-  if (key.length >= 32 && sameStr(await sha256('ek:' + key), row.key_hash)) return { role: 'org', row };
+  if (key.length >= 32 && sameStr(await sha256('ek:' + key), row.key_hash)) return { role: 'org', owner: true, row };
+  const o = (request.headers.get('X-Org') || '').match(/^(o[a-z0-9]{11})\.([a-f0-9]{32})$/);
+  if (o) {
+    const og = await db.prepare('SELECT tok_hash, name, seen FROM sorg WHERE eid = ?1 AND oid = ?2').bind(eid, o[1]).first();
+    if (og && sameStr(await sha256('eo:' + o[2]), og.tok_hash)) return { role: 'org', owner: false, oid: o[1], name: og.name, seen: og.seen, row };
+  }
   const m = (request.headers.get('X-Eval') || '').match(/^([A-Za-z0-9]{8,20})\.([a-f0-9]{32})$/);
   if (m) {
     const ev = await db.prepare('SELECT tok_hash, name, seen FROM seval WHERE eid = ?1 AND vid = ?2').bind(eid, m[1]).first();
@@ -191,6 +203,7 @@ async function handleShared(request, env, p) {
     if (!code) return json({ error: 'busy' }, 503);
     const rev = Math.floor(+body.rev) || now;
     await db.prepare('INSERT INTO sev (eid, code, key_hash, data, rev, seq, nrec, created, touched) VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, ?6, ?6)').bind(eid, code, await sha256('ek:' + key), txt, rev, now).run();
+    const otxt = orgData(body.odata); if (otxt) await db.prepare('INSERT OR REPLACE INTO sodata (eid, data, rev) VALUES (?1, ?2, ?3)').bind(eid, otxt, rev).run();
     if (Math.random() < 0.05) tidyShared(db).catch(() => { /* ignore */ });
     return json({ ok: true, code, key, rev });
   }
@@ -200,6 +213,18 @@ async function handleShared(request, env, p) {
     if (!(await rateOk(db, 'join:' + ip, 40, 3600000))) return json({ error: 'too_many', hint: 'Too many tries. Wait a few minutes.' }, 429);
     const code = String(body.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const name = cleanTxt(body.name, 30); if (!name) return json({ error: 'name_needed' }, 400);
+    if (code.length === 8) {   // an organizer invite: one use, 48 hours
+      const inv = await db.prepare('SELECT eid, created FROM sinv WHERE code = ?1').bind(code).first();
+      if (!inv || now - inv.created > INVITE_MS) return json({ error: 'bad_code' }, 404);
+      const ev = await db.prepare('SELECT eid, code, data, rev FROM sev WHERE eid = ?1').bind(inv.eid).first();
+      if (!ev) return json({ error: 'bad_code' }, 404);
+      const n = await db.prepare('SELECT COUNT(*) AS c FROM sorg WHERE eid = ?1').bind(ev.eid).first();
+      if (n && n.c >= MAX_ORGS) return json({ error: 'full' }, 403);
+      const oid = 'o' + rnd(11, CODE_CHARS.toLowerCase() + '0123456789'), tok = rndHex();
+      await db.batch([db.prepare('DELETE FROM sinv WHERE code = ?1').bind(code), db.prepare('INSERT INTO sorg (eid, oid, tok_hash, name, joined, seen) VALUES (?1, ?2, ?3, ?4, ?5, ?5)').bind(ev.eid, oid, await sha256('eo:' + tok), name, now)]);
+      const od = await db.prepare('SELECT data, rev FROM sodata WHERE eid = ?1').bind(ev.eid).first();
+      return json({ ok: true, role: 'org', eid: ev.eid, oid, tok, code: ev.code, rev: ev.rev, data: JSON.parse(ev.data), orev: od ? od.rev : 0, odata: od ? JSON.parse(od.data) : null });
+    }
     const row = code.length === 6 ? await db.prepare('SELECT eid, data, rev FROM sev WHERE code = ?1').bind(code).first() : null;
     if (!row) return json({ error: 'bad_code' }, 404);
     const cnt = await db.prepare('SELECT COUNT(*) AS c FROM seval WHERE eid = ?1').bind(row.eid).first();
@@ -209,27 +234,34 @@ async function handleShared(request, env, p) {
     return json({ ok: true, eid: row.eid, vid, tok, rev: row.rev, data: JSON.parse(row.data) });
   }
 
-  const m = p.match(/^\/api\/ev\/([A-Za-z0-9]{6,40})\/(sync|put|evaluators|remove|stop|leave)$/);
+  const m = p.match(/^\/api\/ev\/([A-Za-z0-9]{6,40})\/(sync|put|evaluators|remove|stop|leave|orginvite|orgremove)$/);
   if (!m) return json({ error: 'not_found' }, 404);
   const eid = m[1], act = m[2], who = await evWho(db, request, eid);
   if (who.gone) return json({ error: 'gone', hint: 'The organizer stopped sharing this event.' }, 410);
   if (who.bad) return json({ error: 'not_allowed' }, 403);
 
-  if (act === 'leave') { if (who.role !== 'eval') return json({ error: 'not_allowed' }, 403); await db.prepare('DELETE FROM seval WHERE eid = ?1 AND vid = ?2').bind(eid, who.vid).run(); return json({ ok: true }); }
+  if (act === 'leave') {
+    if (who.role === 'eval') await db.prepare('DELETE FROM seval WHERE eid = ?1 AND vid = ?2').bind(eid, who.vid).run();
+    else if (who.oid) await db.prepare('DELETE FROM sorg WHERE eid = ?1 AND oid = ?2').bind(eid, who.oid).run();
+    else return json({ error: 'owner_stops' }, 403);
+    return json({ ok: true });
+  }
 
   /* scores and notes in and out */
   if (act === 'sync') {
     if (who.role === 'eval' && now - (who.seen || 0) > 60000) await db.prepare('UPDATE seval SET seen = ?1 WHERE eid = ?2 AND vid = ?3').bind(now, eid, who.vid).run();
+    if (who.oid && now - (who.seen || 0) > 60000) await db.prepare('UPDATE sorg SET seen = ?1 WHERE eid = ?2 AND oid = ?3').bind(now, eid, who.oid).run();
     const recs = (Array.isArray(body.recs) ? body.recs : []).slice(0, MAX_RECS_IN), good = [];
     let helper = who.role === 'org';
     if (!helper && recs.some(r => r && r.k === 'c')) { const d = await db.prepare('SELECT data FROM sev WHERE eid = ?1').bind(eid).first(); try { helper = (JSON.parse(d.data).helpers || []).includes(who.vid); } catch (e) { helper = false; } }
     for (const r of recs) {
-      if (!r || !RID_RE.test(String(r.id)) || (r.k !== 's' && r.k !== 'n' && r.k !== 'c')) continue;
+      if (!r || !RID_RE.test(String(r.id)) || (r.k !== 's' && r.k !== 'n' && r.k !== 'c' && r.k !== 'x')) continue;
+      if (r.k === 'x' && (who.role !== 'org' || (r.v != null && !ID_RE.test(String(r.v))))) continue;   // team decisions: organizers only
       if (r.k === 'c' && (!helper || (r.v !== 0 && r.v !== 1))) continue;   // check-in: the organizer, or an evaluator allowed to check in
       const by = String(r.by || ''); if (!ID_RE.test(by)) continue;
       if (who.role === 'eval' && by !== who.vid) continue;   // an evaluator can only write their own scores
       if (!ID_RE.test(String(r.p)) || !ID_RE.test(String(r.d)) || (r.s !== '' && !ID_RE.test(String(r.s)))) continue;
-      let v = null; if (r.k === 'c') v = String(r.v); else if (r.k === 's') { if (r.v != null) { v = Number(r.v); if (!isFinite(v) || Math.abs(v) > 1e7) continue; v = String(v); } } else v = cleanTxt(r.v, 300);
+      let v = null; if (r.k === 'x') v = r.v == null ? null : String(r.v); else if (r.k === 'c') v = String(r.v); else if (r.k === 's') { if (r.v != null) { v = Number(r.v); if (!isFinite(v) || Math.abs(v) > 1e7) continue; v = String(v); } } else v = cleanTxt(r.v, 300);
       good.push({ id: String(r.id), k: r.k, by, p: String(r.p), s: String(r.s || ''), d: String(r.d), v, t: Math.min(Math.floor(+r.t) || now, now + 86400000) });
     }
     let accepted = 0;
@@ -250,7 +282,14 @@ async function handleShared(request, env, p) {
     const reply = { ok: true, accepted, more, seq: out.length ? out[out.length - 1].seq : (more ? since : cur.seq), rev: cur.rev,
       recs: out.map(x => ({ id: x.id, k: x.kind, by: x.by, p: x.pid, s: x.kid, d: x.sid, v: x.kind === 's' || x.kind === 'c' ? (x.v == null ? null : Number(x.v)) : x.v, t: x.t })) };
     if (who.role === 'eval' && Math.floor(+body.rev || 0) !== cur.rev) reply.data = JSON.parse(cur.data);
-    if (who.role === 'org') reply.evaluators = ((await db.prepare('SELECT vid, name, joined, seen FROM seval WHERE eid = ?1 ORDER BY joined, rowid').bind(eid).all()).results || []);
+    if (who.role === 'org') {
+      reply.evaluators = ((await db.prepare('SELECT vid, name, joined, seen FROM seval WHERE eid = ?1 ORDER BY joined, rowid').bind(eid).all()).results || []);
+      reply.organizers = ((await db.prepare('SELECT oid, name, joined, seen FROM sorg WHERE eid = ?1 ORDER BY joined, rowid').bind(eid).all()).results || []);
+      const od = await db.prepare('SELECT data, rev FROM sodata WHERE eid = ?1').bind(eid).first();
+      reply.orev = od ? od.rev : 0;
+      if (od && Math.floor(+body.orev || 0) !== od.rev) reply.odata = JSON.parse(od.data);
+      if (Math.floor(+body.rev || 0) !== cur.rev) reply.data = JSON.parse(cur.data);
+    }
     return json(reply);
   }
   if (who.role !== 'org') return json({ error: 'organizer_only' }, 403);
@@ -260,18 +299,39 @@ async function handleShared(request, env, p) {
     const txt = JSON.stringify(data); if (txt.length > MAX_EVENT) return json({ error: 'too_big' }, 413);
     const rev = Math.max(Math.floor(+body.rev) || now, who.row.rev + 1);
     await db.prepare('UPDATE sev SET data = ?1, rev = ?2, touched = ?3 WHERE eid = ?4').bind(txt, rev, now, eid).run();
-    return json({ ok: true, rev });
+    const otxt = orgData(body.odata); let orev = 0;
+    if (otxt) { const od = await db.prepare('SELECT rev FROM sodata WHERE eid = ?1').bind(eid).first(); orev = Math.max(now, od ? od.rev + 1 : 0); await db.prepare('INSERT OR REPLACE INTO sodata (eid, data, rev) VALUES (?1, ?2, ?3)').bind(eid, otxt, orev).run(); }
+    return json({ ok: true, rev, orev });
   }
   if (act === 'evaluators') return json({ evaluators: ((await db.prepare('SELECT vid, name, joined, seen FROM seval WHERE eid = ?1 ORDER BY joined, rowid').bind(eid).all()).results || []) });
   if (act === 'remove') { await db.prepare('DELETE FROM seval WHERE eid = ?1 AND vid = ?2').bind(eid, String(body.vid || '')).run(); return json({ ok: true }); }   // their scores stay; their phone can no longer send
-  if (act === 'stop') { await db.batch([db.prepare('DELETE FROM srec WHERE eid = ?1').bind(eid), db.prepare('DELETE FROM seval WHERE eid = ?1').bind(eid), db.prepare('DELETE FROM sev WHERE eid = ?1').bind(eid)]); return json({ ok: true }); }
+  /* only the organizer who started sharing (the owner) adds or removes organizers and stops sharing */
+  if (!who.owner) return json({ error: 'owner_only' }, 403);
+  if (act === 'orginvite') {
+    let code = '';
+    for (let i = 0; i < 6 && !code; i++) { const c = rnd(8, CODE_CHARS); if (!(await db.prepare('SELECT code FROM sinv WHERE code = ?1').bind(c).first())) code = c; }
+    if (!code) return json({ error: 'busy' }, 503);
+    await db.batch([db.prepare('DELETE FROM sinv WHERE eid = ?1 AND created < ?2').bind(eid, now - INVITE_MS), db.prepare('INSERT INTO sinv (code, eid, created) VALUES (?1, ?2, ?3)').bind(code, eid, now)]);
+    return json({ ok: true, code, expires: now + INVITE_MS });
+  }
+  if (act === 'orgremove') { await db.prepare('DELETE FROM sorg WHERE eid = ?1 AND oid = ?2').bind(eid, String(body.oid || '')).run(); return json({ ok: true }); }
+  if (act === 'stop') { await dropEvent(db, eid); return json({ ok: true }); }
   return json({ error: 'not_found' }, 404);
+}
+/* the organizers' copy: the full event setup (private roster notes, outcomes, team line), never scores */
+function orgData(d) {
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
+  const t = JSON.stringify(d); return t.length <= MAX_EVENT ? t : null;
+}
+async function dropEvent(db, eid) {
+  await db.batch(['srec', 'seval', 'sorg', 'sinv', 'sodata', 'sev'].map(t => db.prepare('DELETE FROM ' + t + ' WHERE eid = ?1').bind(eid)));
 }
 /* shared events untouched for 400 days are removed */
 async function tidyShared(db) {
   const old = Date.now() - 400 * 86400000;
   const gone = (await db.prepare('SELECT eid FROM sev WHERE touched < ?1 LIMIT 20').bind(old).all()).results || [];
-  for (const g of gone) await db.batch([db.prepare('DELETE FROM srec WHERE eid = ?1').bind(g.eid), db.prepare('DELETE FROM seval WHERE eid = ?1').bind(g.eid), db.prepare('DELETE FROM sev WHERE eid = ?1').bind(g.eid)]);
+  for (const g of gone) await dropEvent(db, g.eid);
+  await db.prepare('DELETE FROM sinv WHERE created < ?1').bind(Date.now() - INVITE_MS).run();
   await db.prepare('DELETE FROM srate WHERE win < ?1').bind(Date.now() - 2 * 86400000).run();
 }
 

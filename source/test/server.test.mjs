@@ -32,7 +32,7 @@ let n = 0; const ok = (name) => { n++; console.log('ok', n, name); };
 
 // 1. empty site
 let r = await req('/'); assert.equal(r.status, 200); assert.match(await r.text(), /Almost/); ok('empty site shows the starting page');
-r = await req('/api/health'); let j = await r.json(); assert.equal(j.app, false); assert.equal(j.loader, 'tr-loader-t3'); ok('health before install');
+r = await req('/api/health'); let j = await r.json(); assert.equal(j.app, false); assert.equal(j.loader, 'tr-loader-t4'); ok('health before install');
 r = await req('/nope'); assert.equal(r.status, 404); ok('unknown path 404');
 
 // 2. admin password
@@ -122,5 +122,26 @@ x = await api('/api/ev/e1abcdef/sync', { since: 99999, rev: 1, recs: [rec('c2', 
 assert.equal(x.j.accepted, 1); assert.deepEqual(x.j.data.helpers, [vidB]); assert.deepEqual(x.j.data.assign, { [vidB]: ['g1'] }); assert.equal(x.j.data.checks.d1.p1[0], 1); ok('allowed evaluator checks in (only 1 or 0); event copy carries helpers, groups and check-in');
 x = await api('/api/ev/e1abcdef/sync', { since: x2.j.seq, recs: [rec('c4', 'orgx', 'p1', 0, 9300, 'c', '')] }, KEY); assert.equal(x.j.accepted, 1);
 const cs = x.j.recs.filter(r => r.k === 'c'); assert.equal(cs.length, 2); assert.equal(typeof cs[0].v, 'number'); ok('organizer gets every check-in, as numbers');
+// several organizers
+x = await api('/api/ev/e1abcdef/put', { data: { name: 'T', sport: 'volleyball', form: { skills: [] }, players: [{ id: 'p1' }] }, odata: { name: 'T', players: [{ id: 'p1', notes: 'private' }], line: 4 }, rev: 600 }, KEY);
+assert.ok(x.j.orev > 0); const orev1 = x.j.orev; ok('owner saves the organizers\' copy');
+x = await api('/api/ev/e1abcdef/orginvite', {}, B); assert.equal(x.status, 403); ok('an evaluator cannot invite organizers');
+x = await api('/api/ev/e1abcdef/orginvite', {}, KEY); assert.equal(x.j.code.length, 8); const inv = x.j.code; ok('owner makes an 8-character organizer invite');
+x = await api('/api/ev/join', { code: inv.toLowerCase(), name: 'Coach Two' }); assert.equal(x.j.role, 'org'); assert.equal(x.j.odata.players[0].notes, 'private'); assert.equal(x.j.code, code);
+const O2 = { 'X-Org': x.j.oid + '.' + x.j.tok }, oid2 = x.j.oid; ok('second organizer joins with the invite and gets the full copy');
+x = await api('/api/ev/join', { code: inv, name: 'Again' }); assert.equal(x.status, 404); ok('an invite works once');
+x = await api('/api/ev/join', { code, name: 'Evaluator C' }); assert.equal(x.j.data.players[0].notes, undefined); assert.equal(x.j.odata, undefined); ok('evaluators never get the organizers\' copy');
+x = await api('/api/ev/e1abcdef/sync', { since: x2.j.seq, orev: 0, recs: [rec('xd1', 'orgtwo', 'p1', null, 9500, 'x', '')].map(r => Object.assign(r, { v: 'made' })) }, O2);
+assert.equal(x.status, 200); assert.equal(x.j.accepted, 1); assert.equal(x.j.odata.line, 4); assert.ok(x.j.organizers.some(o => o.name === 'Coach Two')); assert.ok(Array.isArray(x.j.evaluators)); ok('second organizer syncs: decisions, copy, organizer and evaluator lists');
+const xs = x.j.recs.filter(r => r.k === 'x'); assert.equal(xs.length, 1); assert.equal(xs[0].v, 'made'); ok('decision comes back as text');
+x = await api('/api/ev/e1abcdef/sync', { since: x2.j.seq, orev: orev1, recs: [Object.assign(rec('xd2', vidB, 'p1', null, 9600, 'x', ''), { v: 'cut' })] }, B); assert.equal(x.j.accepted, 0); assert.ok(!x.j.recs.some(r => r.k === 'x')); ok('evaluators cannot make or see decisions');
+x = await api('/api/ev/e1abcdef/put', { data: { name: 'T2', sport: 'volleyball', form: { skills: [] }, players: [{ id: 'p1' }] }, odata: { name: 'T2', line: 6 }, rev: 700 }, O2); assert.ok(x.j.orev > orev1); ok('second organizer edits the event');
+x = await api('/api/ev/e1abcdef/sync', { since: 999999, orev: orev1 }, KEY); assert.equal(x.j.odata.line, 6); assert.equal(x.j.data.name, 'T2'); ok('owner gets the change');
+x = await api('/api/ev/e1abcdef/sync', { since: 999999, orev: x.j.orev }, KEY); assert.equal(x.j.odata, undefined); ok('no copy sent when nothing changed');
+x = await api('/api/ev/e1abcdef/stop', {}, O2); assert.equal(x.status, 403); x = await api('/api/ev/e1abcdef/orginvite', {}, O2); assert.equal(x.status, 403); ok('only the owner stops sharing or invites');
+x = await api('/api/ev/e1abcdef/leave', {}, KEY); assert.equal(x.status, 403); ok('the owner cannot leave (stops sharing instead)');
+x = await api('/api/ev/e1abcdef/orgremove', { oid: oid2 }, KEY); x = await api('/api/ev/e1abcdef/sync', { since: 0 }, O2); assert.equal(x.status, 403); ok('owner removes an organizer');
+x = await api('/api/ev/e1abcdef/orginvite', {}, KEY); x = await api('/api/ev/join', { code: x.j.code, name: 'Coach Three' }); const O3 = { 'X-Org': x.j.oid + '.' + x.j.tok };
+x = await api('/api/ev/e1abcdef/leave', {}, O3); assert.equal(x.status, 200); x = await api('/api/ev/e1abcdef/sync', { since: 0 }, O3); assert.equal(x.status, 403); ok('an organizer can leave');
 x = await api('/api/ev/e1abcdef/stop', {}, KEY); assert.equal(x.status, 200); x = await api('/api/ev/e1abcdef/sync', { recs: [] }, B); assert.equal(x.status, 410); x = await api('/api/ev/join', { code, name: 'Late' }, {}, '7.7.7.7'); assert.equal(x.status, 404); ok('stop sharing: everything removed, evaluators told it is gone');
 console.log('ALL', n, 'SERVER TESTS PASSED');

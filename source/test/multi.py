@@ -26,11 +26,11 @@ with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome')
     phone = dict(viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True, device_scale_factor=2)
     pages, errs = {}, []
-    for name, opts in (('org', dict(viewport={'width': 1280, 'height': 900})), ('e1', phone), ('e2', phone)):
+    for name, opts in (('org', dict(viewport={'width': 1280, 'height': 900})), ('e1', phone), ('e2', phone), ('o2', phone)):
         ctx = b.new_context(**opts); ctx.add_init_script("localStorage.setItem('rp.notips','1')"); pg = ctx.new_page(); pages[name] = (ctx, pg)
         pg.on('pageerror', lambda e, n=name: errs.append(n + ': ' + str(e)))
         pg.on('console', lambda m, n=name: errs.append(n + ': ' + m.text) if m.type == 'error' and 'Failed to load resource' not in m.text else None)
-    (octx, org), (c1, e1), (c2, e2) = pages['org'], pages['e1'], pages['e2']
+    (octx, org), (c1, e1), (c2, e2), (co2, o2) = pages['org'], pages['e1'], pages['e2'], pages['o2']
     sheet = lambda pg: pg.locator('.sheet').last
 
     # organizer: event, roster (with a private note), share
@@ -66,7 +66,7 @@ with sync_playwright() as p:
     wait_for(lambda: waiting(e1) == 0, 'e1 scores sent', 20)
 
     # evaluator 2: types the code from the home screen, then loses signal
-    e2.goto(URL); e2.wait_for_selector('text=Join as evaluator'); e2.click('text=Join as evaluator')
+    e2.goto(URL); e2.wait_for_selector('text=Join with a code'); e2.click('text=Join with a code')
     sheet(e2).locator('input.jinp').fill(code.lower()); sheet(e2).locator('input.inp').nth(1).fill('Coach B')
     sheet(e2).locator('button', has_text='Join').click(); e2.wait_for_selector('text=you are scoring as Coach B')
     c2.set_offline(True); e2.evaluate("window.dispatchEvent(new Event('offline'))")
@@ -117,6 +117,45 @@ with sync_playwright() as p:
     org.evaluate("location.hash = '#/e/%s/players'" % evid); org.wait_for_selector('text=Check-in · 2/')
     assert org.locator('.prow2.out').count() == 2, 'players not checked in are faded'
     e1.click('button[aria-label="Back"]'); e1.wait_for_selector('text=Start scoring')
+
+    # a second organizer: invite, join by link, sees everything, decisions and roster changes both ways
+    org.click('text=Evaluators · ' + code);     org.wait_for_selector('text=Add an organizer')
+    org.locator('.sheet button', has_text='Add an organizer').click(); org.wait_for_selector('.jcode8')
+    inv = org.locator('.jcode8').inner_text().replace('\n', '').replace(' ', ''); assert len(inv) == 8, inv
+    time.sleep(0.6); org.screenshot(path='test/multi-6-org-invite.png')
+    org.locator('.sheet button', has_text='Done').last.click(); time.sleep(0.3)
+    if org.locator('.sheet').count(): org.locator('.sheet button', has_text='Done').last.click()
+    o2.goto(URL + 'j/' + inv); o2.wait_for_selector('input.jinp')
+    sheet(o2).locator('input.inp').nth(1).fill('Coach Two'); sheet(o2).locator('button', has_text='Join').click()
+    o2.wait_for_selector('.rrow')
+    def o2_has_all():
+        ev = state(o2)['events'][0]
+        return ev['share'].get('oid') and len({k.split('|')[0] for k, r in ev['scores'].items()}) >= 2 and any(pl.get('notes') == 'secret note' for pl in ev['players'])
+    wait_for(o2_has_all, 'second organizer gets every score and private notes', 40)
+    assert 'Results' in o2.inner_text('body') and 'Form' in o2.inner_text('body'), 'second organizer has the full event'
+    o2.screenshot(path='test/multi-7-second-organizer.png')
+    o2.locator('button', has_text='Team decisions').click(); o2.wait_for_selector('.drow')
+    o2.locator('.drow', has_text='Sam L').locator('.dchip', has_text='Made team').click()
+    def org_sees_decision():
+        ev = state(org)['events'][0]
+        return any(r.get('v') == 'made' for r in (ev.get('decs') or {}).values())
+    wait_for(org_sees_decision, 'owner gets the second organizer\'s decision', 40)
+    assert not any('decs' in json.dumps(ev) and ev.get('decs') for ev in state(e1)['events']), 'evaluators never get decisions'
+    org.evaluate("location.hash = '#/e/%s/players'" % evid); org.wait_for_selector('text=Jo P')
+    org.locator('.prow2', has_text='Jo P').click(); org.wait_for_selector('text=How they were scored')
+    org.locator('button', has_text='Edit').first.click(); sheet(org).locator('input.inp').nth(1).fill('Jo Parker'); sheet(org).locator('button', has_text='Save').last.click(); time.sleep(0.3)
+    wait_for(lambda: any(pl.get('name') == 'Jo Parker' for pl in state(o2)['events'][0]['players']), 'owner\'s roster edit reaches the second organizer', 40)
+    o2.evaluate("location.hash = '#/e/%s/players'" % evid); o2.wait_for_selector('text=Import list')
+    o2.click('text=Add player'); sheet(o2).locator('input.inp').nth(0).fill('22'); sheet(o2).locator('input.inp').nth(1).fill('Two Added')
+    sheet(o2).locator('button', has_text='Save').last.click(); o2.wait_for_selector('text=Two Added')
+    wait_for(lambda: any(pl.get('name') == 'Two Added' for pl in state(org)['events'][0]['players']), 'second organizer\'s new player reaches the owner', 40)
+    assert any(pl.get('name') == 'Jo Parker' for pl in state(org)['events'][0]['players']), 'both edits kept'
+    wait_for(lambda: any(pl.get('name') == 'Two Added' for pl in state(e1)['events'][0]['players']), 'and the evaluators', 40)
+    org.evaluate("location.hash = '#/e/%s/players'" % evid); org.wait_for_selector('text=Import list')
+    org.click('text=Evaluators · ' + code); org.wait_for_selector('text=Coach Two')
+    org.locator('button[aria-label="Remove Coach Two"]').click(); org.locator('.sheet button', has_text='Remove').last.click(); time.sleep(0.5)
+    org.locator('.sheet button', has_text='Done').last.click()
+    wait_for(lambda: state(o2)['events'][0]['share'].get('removed'), 'second organizer told they were removed', 40)
 
     # remove evaluator 2
     org.click('text=Evaluators · ' + code); org.wait_for_selector('text=Coach B')

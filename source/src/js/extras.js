@@ -75,6 +75,18 @@ const HELP = [
     'Coaches see only their own scores. You see everyone\'s in Results as they come in. Missing scores shows who still needs scoring by whom.',
     'No signal in the gym is fine: scores wait on each phone and send when it reconnects. The pill at the top shows how many are waiting.',
     'Stop sharing any time. You keep every score.']],
+  ['Other organizers', [
+    'After you share an event, Share sheet, Add an organizer makes a one-time 8-character code (with a QR code). The other organizer taps Join with a code on their phone or computer.',
+    'Organizers see and change everything: scores, results, private notes, check-in and team decisions. Add as many as you need, one code each.',
+    'Only you (the owner, who started sharing) can add or remove organizers and stop sharing. Another organizer can leave by deleting the event on their phone.',
+    'If two organizers change the setup at the same moment, both changes are kept where possible.']],
+  ['Team decisions', [
+    'Results tab, Team decisions. Tap Made team, Waitlist or Not selected beside each player, or Fill from ranking to do it in one go (it starts from the team line).',
+    'Choices: switch to camp tracks (Advanced, Intermediate, Beginner), team levels, or your own list.',
+    'Save as PDF lists each outcome with numbers and names only, no scores, ready to post or send to families. Evaluators never see decisions.']],
+  ['Score guides', [
+    'Form tab, Score guides: a short line for what each score means, for every skill or one skill at a time. New events start with sample guides you can change.',
+    'Evaluators see the line under the score they tap, and the guide button beside a skill shows the whole guide.']],
   ['Check-in', [
     'Players tab, Check-in. Tap each player as they arrive. Players not checked in move to the bottom of the scoring lists, Next skips them and Missing scores leaves them out.',
     'Each day has its own check-in. Until someone is checked in that day, everyone counts as here.']],
@@ -92,6 +104,11 @@ const HELP = [
   ['Your data', [
     'Events live on this phone. Home, Back up or restore saves a file you can keep or move to a new phone.',
     'Shared events are also kept on the RosterPulse server until you stop sharing. See Privacy for details.']],
+  ['Install on your phone', [
+    'Home, More, Add to Home Screen shows the steps for iPhone, Android and computers. Installed, it opens like an app and works with no signal.',
+    'On iPhone, install before setting up events: the Home Screen app keeps its own copy, separate from Safari.']],
+  ['After tryouts', [
+    'For hockey, ringette, basketball, soccer and lacrosse, ShotPulse (shotpulse.app, from the maker of RosterPulse) tracks the team\'s game stats all season, with a live link for parents. The two apps are separate: nothing moves between them unless you type it in.']],
   ['Updates', [
     'The app updates itself. Home, Check for updates shows the version and gets the newest one.']]];
 function viewHelp() {

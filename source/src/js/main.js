@@ -46,13 +46,14 @@ function render() {
   else if (R.name === 'c') view = viewCompare(R.args[0], R.args[1]);
   else if (R.name === 'm') view = viewMissing(R.args[0]);
   else if (R.name === 'k') view = viewCheckin(R.args[0], R.args[1]);
+  else if (R.name === 'x') view = viewDecisions(R.args[0]);
   else if (R.name === 'help') view = viewHelp();
   else if (R.name === 'privacy') view = viewPrivacy();
   else if (R.name === 'templates') view = viewTemplates();
   else view = viewHome();
   app.dataset.view = R.name;
   /* browser tab and home-screen switcher show the event name with the app name */
-  const evNow = ['e', 's', 'r', 'p', 'c', 'm', 'k'].includes(R.name) ? eventById(R.args[0]) : null;
+  const evNow = ['e', 's', 'r', 'p', 'c', 'm', 'k', 'x'].includes(R.name) ? eventById(R.args[0]) : null;
   document.title = evNow ? evNow.name + ' · RosterPulse' : 'RosterPulse';
   /* every page but home ends with the RosterPulse mark */
   if (R.name !== 'p') { const v = [].concat(view).flat(Infinity).filter(Boolean); const m = v.find(x => x.tagName === 'MAIN'); if (m) m.append(brandFoot()); }
@@ -67,7 +68,7 @@ function render() {
   const conn = () => document.querySelectorAll('[data-conn]').forEach(el => el.replaceWith(connPill()));
   window.addEventListener('online', conn); window.addEventListener('offline', conn);
   registerSW();
-  const jm = location.pathname.match(/^\/j\/([A-Za-z0-9]{6})\/?$/);
+  const jm = location.pathname.match(/^\/j\/([A-Za-z0-9]{6}|[A-Za-z0-9]{8})\/?$/);
   if (jm) { history.replaceState(null, '', '/' + location.hash); setTimeout(() => joinSheet(jm[1].toUpperCase()), 150); }
   setTimeout(syncTick, 800);
   window.__rp = { S, SPORTS, parseRoster, formFromSport, newEvent, render, syncEvent, SYNC };   // for tests

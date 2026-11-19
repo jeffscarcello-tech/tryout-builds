@@ -73,6 +73,7 @@ function shownScore(ev, pid, kid, sid, by) {
 function setScore(ev, pid, kid, sid, v) {
   ev.scores = ev.scores || {};
   ev.evaluators = ev.evaluators || {}; if (myName(ev)) ev.evaluators[myId(ev)] = myName(ev);
+  if (!ev.join && myName(ev) && (ev.orgNames || {})[myId(ev)] !== myName(ev)) ev.orgNames = Object.assign({}, ev.orgNames, { [myId(ev)]: myName(ev) });
   ev.scores[sKey(myId(ev), pid, kid, sid)] = { id: uid('r'), v: v == null ? null : v, t: Date.now(), q: 1 };   // q: waiting to be sent
   syncSoon(ev);
   touch(ev);
@@ -200,14 +201,14 @@ function scoreBySkill(ev, sid, list, away) {
     return h('div', { class: 'srow skrow' + (awayRows.includes(p) ? ' out' : '') },
       h('div', { class: 'shead' }, h('span', { class: 'jn' }, p.num || '–'), h('div', { class: 'grow', style: 'min-width:0' }, h('div', { class: 'pnm ellip' }, p.name || 'No name'), p.pos ? h('div', { class: 'pmeta' }, p.pos) : null),
         cur.carried ? h('span', { class: 'carry' }, 'from ' + cur.carried.name) : null, skillNoteBtn(ev, p, k, sid)),
-      n ? h('div', { class: 'snote' }, n) : null, ctl);
+      n ? h('div', { class: 'snote' }, n) : null, ctl, k.test ? null : guideLine(ev.form, k, cur.v));
   };
   return [
     h('div', { class: 'skillbar' },
       h('button', { class: 'mini', 'aria-label': 'Previous skill', disabled: ci === 0, onclick: () => setK(ci - 1) }, icon('back')),
       (() => { const el = h('select', { class: 'inp grow', 'aria-label': 'Skill', onchange: e => setK(+e.target.value) }, choices.map(([c, l], i) => h('option', { value: String(i), selected: i === ci }, l))); el.value = String(ci); return el; })(),
       h('button', { class: 'mini', 'aria-label': 'Next skill', disabled: ci === choices.length - 1, onclick: () => setK(ci + 1) }, icon('chev'))),
-    h('div', { class: 'row', style: 'margin:8px 0 10px' }, h('span', { class: 'pmeta grow' }, k.test ? (k.better === 'low' ? 'Lower is better' : 'Higher is better') : 'Every tap is a ' + k.name.toLowerCase() + ' score'), h('span', { class: 'cnt' }, done + ' of ' + rows.length)),
+    h('div', { class: 'row', style: 'margin:8px 0 10px' }, h('span', { class: 'pmeta grow' }, k.test ? (k.better === 'low' ? 'Lower is better' : 'Higher is better') : 'Every tap is a ' + k.name.toLowerCase() + ' score'), k.test ? null : guideBtn(ev.form, k), h('span', { class: 'cnt' }, done + ' of ' + rows.length)),
     rows.length ? h('div', { class: 'stack', style: 'gap:8px' }, rows.map(row)) : h('div', { class: 'empty' }, 'No ' + W.players + ' here use this skill.'),
     awayRows.length ? [sect('Not checked in', h('span', { class: 'cnt' }, awayRows.length)), h('div', { class: 'stack', style: 'gap:8px' }, awayRows.map(row))] : null,
     ci < choices.length - 1 ? h('button', { class: 'btn primary block', style: 'margin-top:14px', onclick: () => setK(ci + 1) }, 'Next skill: ' + choices[ci + 1][1], icon('chev')) : h('p', { class: 'note center', style: 'margin-top:14px' }, 'That is the last skill.')];
@@ -226,9 +227,9 @@ function viewScorePlayer(evId, sid, gid, pid) {
   const row = k => {
     const cur = shownScore(ev, p.id, k.id, sid), n = getNote(ev, p.id, k.id, sid);
     return h('div', { class: 'srow' },
-      h('div', { class: 'shead' }, h('div', { class: 'sname grow' }, k.name), cur.carried ? h('span', { class: 'carry' }, 'from ' + cur.carried.name) : null, noteBtn(k)),
+      h('div', { class: 'shead' }, h('div', { class: 'sname grow' }, k.name), cur.carried ? h('span', { class: 'carry' }, 'from ' + cur.carried.name) : null, guideBtn(ev.form, k), noteBtn(k)),
       n ? h('div', { class: 'snote' }, n) : null,
-      scoreControl(ev, p, k, sid, k.name));
+      scoreControl(ev, p, k, sid, k.name), guideLine(ev.form, k, cur.v));
   };
   const testRow = t => {
     const cur = shownScore(ev, p.id, t.id, sid), n = getNote(ev, p.id, t.id, sid);

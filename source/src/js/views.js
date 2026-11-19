@@ -2,6 +2,7 @@
    Screens: home (events), one event (players, groups, form), my templates.
    ===================================================================== */
 Object.assign(ICONS, {
+  sort: '<path d="M4 6h16M4 12h11M4 18h6"/>', guide: '<path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/>', phone: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18h2"/>', crown: '<path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z"/>',
   up: '<path d="M6 15l6-6 6 6"/>', down: '<path d="M6 9l6 6 6-6"/>',
   users: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.6-3.4 3-5.4 6-5.4s5.4 2 6 5.4"/><circle cx="17" cy="9" r="2.4"/><path d="M16 14.6c2.4.2 4.2 1.9 4.8 4.6"/>',
   clip: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM8.5 11h7M8.5 15h5"/>',
@@ -52,16 +53,17 @@ function viewHome() {
   const evs = S.events;
   return [brandBar(connPill()),
     h('main', { class: 'page' },
+      installCard(),
       tip('home', 'New here? Tap Try the demo to look around a sample tryout with scores already in. When you are ready, tap New event.'),
       h('div', { class: 'hero' }, h('h1', { class: 'disp' }, 'Tryouts and camps'),
         h('p', { class: 'muted' }, 'Set up your event, load your roster, and score players by jersey number.')),
       h('button', { class: 'btn primary block big', style: 'margin-top:14px', onclick: newEventSheet }, icon('plus'), 'New event'),
-      h('button', { class: 'btn block', style: 'margin-top:8px', onclick: () => joinSheet() }, icon('link'), 'Join as evaluator'),
+      h('button', { class: 'btn block', style: 'margin-top:8px', onclick: () => joinSheet() }, icon('link'), 'Join with a code'),
       sect('Your events', h('span', { class: 'cnt' }, evs.length || '')),
       evs.length ? h('div', { class: 'list' }, evs.map(ev => {
         const sp = sportById(ev.sport), w = wordsOf(ev);
         return h('button', { class: 'evcard', onclick: () => go('e', ev.id, 'players') },
-          h('div', { class: 'nm ellip' }, ev.name, ev.join ? h('span', { class: 'ebadge' }, 'Evaluator') : ev.share ? h('span', { class: 'ebadge sh' }, 'Shared') : ev.demo ? h('span', { class: 'ebadge demo' }, 'Demo') : null),
+          h('div', { class: 'nm ellip' }, ev.name, ev.join ? h('span', { class: 'ebadge' }, 'Evaluator') : ev.share ? h('span', { class: 'ebadge sh' }, isOwner(ev) ? 'Shared' : 'Organizer') : ev.demo ? h('span', { class: 'ebadge demo' }, 'Demo') : null),
           h('div', { class: 'sub' }, [sp.name, plural(ev.players.length, w.player, w.players), ev.groups.length ? plural(ev.groups.length, 'group', 'groups') : null, fmtDate(ev.created)].filter(Boolean).join(' · ')));
       })) : h('div', { class: 'empty' }, 'No events yet. Tap New event to set up your first tryout or camp, or try the demo.'),
       evs.some(e => e.demo) ? null : h('button', { class: 'btn block ghost', style: 'margin-top:10px', onclick: openDemo }, icon('play'), 'Try the demo'),
@@ -69,8 +71,10 @@ function viewHome() {
       h('div', { class: 'list' },
         h('button', { class: 'item', onclick: () => go('templates') }, icon('clip'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'My templates'), h('div', { class: 'pmeta' }, plural(S.templates.length, 'saved form', 'saved forms'))), icon('chev')),
         h('button', { class: 'item', onclick: backupSheet }, icon('dl'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Back up or restore'), h('div', { class: 'pmeta' }, 'Everything is stored on this phone for now')), icon('chev')),
+        isInstalled() ? null : h('button', { class: 'item', onclick: () => installSheet() }, icon('phone'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Add to Home Screen'), h('div', { class: 'pmeta' }, 'Opens like an app, works with no signal')), icon('chev')),
         h('button', { class: 'item', onclick: () => go('help') }, icon('help'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Help'), h('div', { class: 'pmeta' }, 'How it works, step by step')), icon('chev')),
         h('button', { class: 'item', onclick: () => go('privacy') }, icon('eye'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Privacy'), h('div', { class: 'pmeta' }, 'What is stored, where, and for how long')), icon('chev')),
+        h('a', { class: 'item', href: 'https://shotpulse.app', target: '_blank', rel: 'noopener' }, icon('stats'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'ShotPulse'), h('div', { class: 'pmeta' }, 'Game stats for the season, from the same maker')), icon('chev')),
         h('button', { class: 'item', onclick: () => { location.href = '/about'; } }, icon('target'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'About RosterPulse'), h('div', { class: 'pmeta' }, 'The page to show other coaches')), icon('chev')),
         S.settings.tips && Object.keys(S.settings.tips).length ? h('button', { class: 'item', onclick: () => { S.settings.tips = {}; save(); toast('Tips will show again.'); render(); } }, icon('bell'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Show tips again')), icon('chev')) : null,
         h('button', { class: 'item', onclick: checkForUpdate }, icon('history'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Check for updates'), h('div', { class: 'pmeta' }, 'Version ' + APP.build)), icon('chev'))),
@@ -121,7 +125,8 @@ function eventMenu(ev) {
   openSheet((s, api) => {
     const row = (ic, label, fn, danger) => h('button', { class: 'item' + (danger ? ' danger' : ''), style: danger ? 'color:var(--bad)' : null, onclick: () => { api.close(); fn(); } }, icon(ic), h('div', { class: 'pnm grow' }, label));
     s.append(h('h2', null, ev.name), h('div', { class: 'list' },
-      row('qr', ev.share ? 'Evaluators and join code' : 'Share with evaluators', () => shareSheet(ev)),
+      row('qr', ev.share ? 'Evaluators, organizers and codes' : 'Share with evaluators and organizers', () => shareSheet(ev)),
+      row('target', 'Team decisions', () => go('x', ev.id)),
       row('edit', 'Rename event', async () => { const v = await promptBox({ title: 'Event name', value: ev.name, max: 60 }); if (v) { ev.name = v; touch(ev); render(); } }),
       row('copy', 'Copy event (same form and groups, no ' + W.players + ')', () => {
         const c = newEvent(ev.name + ' (copy)', ev.sport, ev.form);
@@ -129,8 +134,9 @@ function eventMenu(ev) {
       }),
       row('clip', 'Save form as my template', () => saveTemplate(ev)),
       row('trash', 'Delete event', async () => {
-        if (!(await confirmBox({ title: 'Delete this event?', message: 'Its ' + W.players + ', groups and form are removed from this phone.' + (ev.share ? ' Sharing stops and evaluators can no longer send scores.' : '') + ' This cannot be undone.', ok: 'Delete', danger: true }))) return;
-        if (ev.share) { try { await api('/api/ev/' + ev.id + '/stop', {}, authOf(ev)); } catch (e) { /* deleted here anyway; the server copy expires */ } }
+        const owner = !ev.share || isOwner(ev);
+        if (!(await confirmBox({ title: owner ? 'Delete this event?' : 'Leave and delete from this phone?', message: owner ? 'Its ' + W.players + ', groups and form are removed from this phone.' + (ev.share ? ' Sharing stops for everyone: evaluators and other organizers can no longer send scores.' : '') + ' This cannot be undone.' : 'You stop being an organizer of this event. The event goes on for everyone else.', ok: owner ? 'Delete' : 'Leave', danger: true }))) return;
+        if (ev.share && !ev.share.gone && !ev.share.removed) { try { await api('/api/ev/' + ev.id + (owner ? '/stop' : '/leave'), {}, authOf(ev)); } catch (e) { /* deleted here anyway; the server copy expires */ } }
         S.events = S.events.filter(x => x !== ev); save(true); go('home');
       }, true)));
   });
@@ -317,6 +323,7 @@ function chipList(ev, arr, addTitle, addHint) {
 }
 function formTab(ev) {
   const f = ev.form, sp = sportById(ev.sport);
+  if (f.levels && f.levels.sample && f.levels.key !== gkey(f) && LEVELS[gkey(f)]) { f.levels = { key: gkey(f), g: Object.assign({}, LEVELS[gkey(f)]), sample: true }; save(); }   // sample guide follows a scale change
   return [
     h('p', { class: 'note' }, 'This is what evaluators score. Changes here apply to this event only. Tap a skill to rename it, the ×1 button to weight it, and the arrows to reorder.'),
     sect('Scale'), h('div', { class: 'seg' }, SCALES.map(([k, l]) => h('button', { class: f.scale === k ? 'on' : '', onclick: () => changeScale(ev, k, 1) }, l)),
@@ -325,6 +332,7 @@ function formTab(ev) {
     skillEditor(ev, f.skills, f.alt ? 'Skills (everyone except ' + f.alt.pos.toLowerCase() + 's)' : 'Skills'),
     f.alt ? [skillEditor(ev, f.alt.skills, f.alt.pos + ' skills'),
       h('button', { class: 'btn sm ghost', style: 'margin-top:8px', onclick: async () => { if (await confirmBox({ title: 'Use one skill list for everyone?', message: 'The ' + f.alt.pos.toLowerCase() + ' list is removed.', ok: 'Use one list' })) { f.alt = null; touch(ev); render(); } } }, 'Use one list for everyone')] : null,
+    guidesPart(ev),
     sect(cap(W.positions)), chipList(ev, f.positions, 'Add a ' + W.position, ''),
     sect('Age divisions'), chipList(ev, f.divisions, 'Add an age division', 'U15'),
     !f.divisions.length ? h('div', { class: 'chips', style: 'margin-top:8px' }, ['U11', 'U13', 'U15', 'U17', 'U19'].map(x => h('button', { class: 'chip', style: 'opacity:.7', onclick: () => { f.divisions.push(x); touch(ev); render(); } }, '+ ' + x))) : null,
@@ -344,7 +352,7 @@ function formTab(ev) {
       h('button', { class: 'btn block', onclick: () => saveTemplate(ev) }, icon('clip'), 'Save as my template'),
       sp.id !== 'blank' ? h('button', { class: 'btn block ghost', onclick: async () => {
         if (!(await confirmBox({ title: 'Reset the form?', message: 'Skills, ' + W.positions + ' and tests go back to the ' + sp.name + ' starting list. ' + cap(W.players) + ' and groups are kept.' + (ev.scores && Object.keys(ev.scores).length ? ' Scores already entered for the current skills will no longer show.' : ''), ok: 'Reset', danger: true }))) return;
-        const d = f.divisions; ev.form = formFromSport(ev.sport); ev.form.divisions = d; touch(ev); render();
+        const d = f.divisions, o = f.outcomes; ev.form = sampleGuides(formFromSport(ev.sport), ev.sport); ev.form.divisions = d; if (o) ev.form.outcomes = o; touch(ev); render();
       } }, 'Reset to the ' + sp.name + ' starting list') : null)
   ];
 }

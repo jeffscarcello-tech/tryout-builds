@@ -129,7 +129,7 @@ function resultRows(ev) {
 function resultsTab(ev) {
   ensureDays(ev);
   const f = ev.form, { res, rows, val, test, sk, gname } = resultRows(ev);
-  const scored = rows.filter(r => val(r) != null), line = Math.max(0, Math.min(ev.line || 0, scored.length));
+  const scored = rows.filter(r => val(r) != null), line = Math.max(0, Math.min(ev.line || 0, scored.length)), dec = decisionsOf(ev);
   const sel = (label, value, opts, set, noBlank) => {
     const el = h('select', { class: 'inp' + (value && !noBlank ? ' on' : ''), 'aria-label': label, onchange: e => { set(e.target.value); render(); } }, (noBlank ? [] : [['', label]]).concat(opts).map(([k, l]) => h('option', { value: k, selected: value === k }, l)));
     el.value = value || (noBlank ? opts[0][0] : ''); return el;   // always show the filter that is really on
@@ -148,7 +148,7 @@ function resultsTab(ev) {
       h('span', { class: 'rk' }, v == null ? '' : i + 1),
       h('span', { class: 'jn' }, r.p.num || '–'),
       h('div', { class: 'grow', style: 'min-width:0' }, h('div', { class: 'pnm ellip' }, r.p.name || 'No name', r.flagged.length ? h('span', { class: 'flag', title: 'Evaluators disagree' }, ' ⚑') : null),
-        h('div', { class: 'pmeta ellip' }, [r.p.pos, gname(r.p.group), r.p.div, r.nEval > 1 ? r.nEval + ' evaluators' : null].filter(Boolean).join(' · ') || ' ')),
+        h('div', { class: 'pmeta ellip' }, [r.p.pos, gname(r.p.group), r.p.div, r.nEval > 1 ? r.nEval + ' evaluators' : null].filter(Boolean).join(' · ') || ' '), decisionBadge(ev, r.p.id, dec)),
       h('div', { class: 'rv' }, showVal(r) || h('span', null, 'not scored'))));
     if (line && i === line - 1 && scored.length > line) list.push(h('div', { class: 'tline' }, h('span', null, 'Team line · ' + line + ' spots')));
   });
@@ -168,6 +168,7 @@ function resultsTab(ev) {
       h('b', { class: 'num', style: 'min-width:28px;text-align:center' }, ev.line ? ev.line : 'off'),
       h('button', { class: 'mini', 'aria-label': 'More spots', onclick: () => { ev.line = (ev.line || 0) + 1; touch(ev); render(); } }, icon('plus')),
       h('span', { class: 'grow' }), h('span', { class: 'cnt' }, scored.length + ' of ' + rows.length + ' scored')),
+    h('button', { class: 'btn block', style: 'margin:8px 0 2px', onclick: () => go('x', ev.id) }, icon('crown'), 'Team decisions', dec.size ? h('span', { class: 'cnt', style: 'margin-left:6px' }, dec.size + ' decided') : null),
     res.rule !== 'avg' && RS.day === 'all' ? h('p', { class: 'note' }, res.rule === 'total' ? 'Days are added together (Form tab).' : 'Each skill uses its latest score (carry forward).') : null,
     h('div', { class: 'list', style: 'gap:6px;margin-top:8px' }, list.length ? list : h('div', { class: 'empty' }, 'No ' + W.players + ' match.')),
     h('p', { class: 'note', style: 'margin-top:10px' }, '⚑ = evaluators disagree a lot on a skill. Tap a ' + W.player + ' for the full card.'),
@@ -217,6 +218,7 @@ function viewPlayerCard(evId, pid) {
         r.scored < r.of ? h('span', { class: 'pbadge' }, r.scored + ' of ' + r.of + ' skills scored') : null,
         r.flagged.length ? h('span', { class: 'pbadge bad' }, '⚑ Evaluators disagree: ' + r.flagged.join(', ')) : null,
         RS.day !== 'all' ? h('span', { class: 'pbadge' }, (ev.sessions.find(d => d.id === RS.day) || {}).name + ' only') : null),
+      ev.join ? null : [sect('Decision'), decisionChips(ev, p.id)],
       sect('How they were scored', h('span', { class: 'cnt' }, summary.length || '')),
       summary.length ? h('div', { class: 'list', style: 'gap:6px' }, summary.map(x => h('div', { class: 'krow' },
         h('div', { class: 'knm' }, h('div', { class: 'pnm' }, x.who + (x.day ? ' · ' + x.day : '')), h('div', { class: 'pmeta' }, x.done + ' of ' + x.all + ' scored' + (x.notes ? ' · ' + plural(x.notes, 'note', 'notes') : '') + (x.when ? ' · ' + x.when : ''))),
@@ -258,11 +260,12 @@ function scoringSummary(ev, p) {
 function resultsCsv(ev) {
   const { res, rows, val } = resultRows(ev), f = ev.form, ks = allSkills(ev), gname = id => (ev.groups.find(g => g.id === id) || {}).name || '';
   const q = v => { const s = v == null ? '' : String(v); return /[",\n\r]/.test(s) || /^[=+\-@]/.test(s) ? '"' + s.replace(/"/g, '""').replace(/^([=+\-@])/, "'$1") + '"' : s; };
-  const head = ['Rank', 'Number', 'Name', cap(W.position), 'Group', 'Division', 'Overall', 'Overall %', 'Evaluators', 'Disagree on'].concat(ks.map(k => k.name), f.tests.map(t => t.name + (t.unit ? ' (' + t.unit + ')' : '')), ['Notes']);
+  const dec = decisionsOf(ev), dname = pid => (outcomesOf(ev).find(o => o.id === dec.get(pid)) || {}).name || '';
+  const head = ['Rank', 'Number', 'Name', cap(W.position), 'Group', 'Division', 'Decision', 'Overall', 'Overall %', 'Evaluators', 'Disagree on'].concat(ks.map(k => k.name), f.tests.map(t => t.name + (t.unit ? ' (' + t.unit + ')' : '')), ['Notes']);
   const lines = [head.map(q).join(',')];
   rows.forEach((r, i) => {
     const notes = notesFor(ev, r.p.id).map(n => (n.skill ? n.skill + ': ' : '') + n.text).join(' | ');
-    lines.push([val(r) == null ? '' : i + 1, r.p.num, r.p.name, r.p.pos, gname(r.p.group), r.p.div, r.overall == null ? '' : fmtV(r.overall, 2), r.pct == null ? '' : Math.round(r.pct), r.nEval, r.flagged.join('; ')]
+    lines.push([val(r) == null ? '' : i + 1, r.p.num, r.p.name, r.p.pos, gname(r.p.group), r.p.div, dname(r.p.id), r.overall == null ? '' : fmtV(r.overall, 2), r.pct == null ? '' : Math.round(r.pct), r.nEval, r.flagged.join('; ')]
       .concat(ks.map(k => r.skills[k.id] ? fmtV(r.skills[k.id].v, 2) : ''), f.tests.map(t => r.tests[t.id] == null ? '' : r.tests[t.id]), [notes]).map(q).join(','));
   });
   return '﻿' + lines.join('\r\n');
@@ -287,7 +290,7 @@ function cardReport(ev, pid) {
   const rk = (lbl, x) => x ? ['#' + x.at + ' of ' + x.of + ' ' + lbl] : [];
   const blocks = [{ kv: [['Overall', r.pct == null ? 'not scored' : (f.scale === 'pcm' ? Math.round(r.pct) + '%' : fmtV(r.overall) + ' out of ' + res.skMax + ' (' + Math.round(r.pct) + '%)')]].concat(
     r.rank ? [['Rank', [].concat(rk('overall', r.rank.all), rk(p.pos ? 'in ' + p.pos : '', r.rank.pos), rk('in ' + (gname || ''), r.rank.grp), rk('in ' + (p.div || ''), r.rank.div)).join(', ')]] : [],
-    [['Scored by', plural(r.nEval, 'evaluator', 'evaluators')]], r.flagged.length ? [['Evaluators disagree on', r.flagged.join(', ')]] : []) },
+    [['Scored by', plural(r.nEval, 'evaluator', 'evaluators')]], decisionsOf(ev).has(p.id) ? [['Decision', outcomesOf(ev).find(o => o.id === decisionsOf(ev).get(p.id)).name]] : [], r.flagged.length ? [['Evaluators disagree on', r.flagged.join(', ')]] : []) },
     { h: 'Skills' }, { table: { head: ['Skill', 'Score'].concat(multi ? ev.sessions.filter(d => res.dayIds.includes(d.id)).map(d => d.name) : [], ['Evaluators']), align: ['l', 'r'].concat(multi ? res.dayIds.map(() => 'r') : [], ['r']),
       rows: ks.map(k => { const x = r.skills[k.id]; return [k.name + (k.w !== 1 ? ' (' + wLabel(k.w) + ')' : ''), x ? shortScore(f, x.v) : '–'].concat(multi ? res.dayIds.map((_, j) => x && x.days && x.days[j] != null ? shortScore(f, x.days[j]) : '–') : [], [x ? String(x.n) : '']); }) } }];
   if (f.tests.length) blocks.push({ h: 'Measured tests' }, { table: { head: ['Test', 'Result', 'Rank'], align: ['l', 'r', 'r'], rows: f.tests.map(t => [t.name, r.tests[t.id] == null ? '–' : fmtV(r.tests[t.id], 2) + ' ' + (t.unit || ''), r.testRank && r.testRank[t.id] ? '#' + r.testRank[t.id].at + ' of ' + r.testRank[t.id].of : '']) } });
@@ -307,10 +310,10 @@ function reportHtml(rep) {
 function viewPrint(evId, kind, pid) {
   const ev = eventById(evId); if (!ev) return viewHome();
   ensureDays(ev); W = wordsOf(ev);
-  const rep = kind === 'card' ? cardReport(ev, pid) : resultsReport(ev);
+  const rep = kind === 'card' ? cardReport(ev, pid) : kind === 'decisions' ? decisionsReport(ev) : resultsReport(ev);
   if (!rep) return viewEvent(evId, 'results');
-  const fname = 'RosterPulse-' + fileSafe(ev.name) + (kind === 'card' ? '-' + fileSafe(rep.title) : '-results') + '.pdf';
-  return [topBar('Print or save', kind === 'card' ? ['r', ev.id, pid] : ['e', ev.id, 'results']),
+  const fname = 'RosterPulse-' + fileSafe(ev.name) + (kind === 'card' ? '-' + fileSafe(rep.title) : kind === 'decisions' ? '-decisions' : '-results') + '.pdf';
+  return [topBar('Print or save', kind === 'card' ? ['r', ev.id, pid] : kind === 'decisions' ? ['x', ev.id] : ['e', ev.id, 'results']),
     h('main', { class: 'page' },
       h('button', { class: 'btn primary block big ptool', onclick: () => saveFile(fname, makePdf(rep), 'application/pdf') }, icon('dl'), 'Save as PDF'),
       h('p', { class: 'note ptool', style: 'margin:8px 0 6px' }, 'Then pick Print, Save to Files, Mail or Messages from your phone\'s share menu.'),

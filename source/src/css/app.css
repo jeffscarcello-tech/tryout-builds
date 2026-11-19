@@ -208,3 +208,30 @@ textarea.inp{min-height:180px;padding:12px 14px;line-height:1.45;font-family:inh
 .privdoc .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:4px 14px;margin:12px 0}.privdoc .m{font-size:13px}
 
 header.top .homebtn{margin-left:-4px}
+/* ---------- team decisions ---------- */
+.dbadge{display:inline-block;margin-top:4px;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:800;color:var(--dc);border:1px solid var(--dc);background:color-mix(in srgb,var(--dc) 14%,transparent)}
+.dchips{display:flex;gap:6px;flex-wrap:wrap}
+.dchip{flex:1 1 auto;min-width:0;padding:8px 10px;border-radius:12px;border:1px solid var(--line2);background:var(--bg2);color:var(--text);font:inherit;font-weight:700;font-size:13px;cursor:pointer}
+.dchip.on{border-color:var(--dc);background:color-mix(in srgb,var(--dc) 22%,transparent);color:#fff}
+.drow{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 10px 10px}
+.drow-top{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;color:var(--text);font:inherit;text-align:left;padding:2px 0 8px;cursor:pointer}
+.drow .rk{min-width:20px;color:var(--muted);font-weight:800;font-size:13px;text-align:right}.drow .rv{font-weight:800}
+.drow .rv span{color:var(--muted);font-weight:600;font-size:12px}
+.ddot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--dc);margin-right:6px;flex:none}
+.chip .ddot{margin-right:6px}.chip b{margin-left:2px}
+/* ---------- score guides ---------- */
+.gline{margin-top:8px;font-size:13px;color:var(--muted);line-height:1.35}.gline b{color:var(--accent);margin-right:4px}
+.gbtn{width:30px;height:30px}
+.glist{display:flex;flex-direction:column;gap:8px}
+.grow2{display:flex;gap:12px;align-items:baseline;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.grow2 b{min-width:26px;color:var(--accent);font-size:18px}.grow2.edit{align-items:center;padding:6px 8px}.grow2.edit .inp{flex:1}
+button.krow{width:100%;text-align:left;font:inherit;color:var(--text);cursor:pointer}
+/* ---------- install ---------- */
+.istep{display:flex;gap:12px;align-items:flex-start;margin:10px 0;line-height:1.45}
+.istep .n{flex:none;width:28px;height:28px;border-radius:9px;background:rgba(255,138,31,.15);color:var(--accent);font-weight:900;display:grid;place-items:center}
+.jcode8 b{width:36px;height:50px;font-size:26px}
+/* ---------- ShotPulse (sibling app) ---------- */
+.spcard{display:flex;gap:10px;align-items:flex-start;margin:16px 0 4px;padding:14px;border-radius:16px;border:1px solid rgba(59,139,255,.35);background:linear-gradient(135deg,rgba(59,139,255,.12),rgba(59,139,255,.03))}
+.spcard .sph{font-weight:800;margin-bottom:4px}.spcard .sph b{color:#fff}.spcard .sph b span{color:#3b8bff}
+.spcard .btn{display:inline-flex;text-decoration:none}
+a.item{text-decoration:none;color:inherit}
