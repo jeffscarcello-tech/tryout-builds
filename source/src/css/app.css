@@ -245,3 +245,6 @@ button.bar-row.tapable:active{border-color:var(--accent)}
 .cdrow .cdv{font-size:22px;font-weight:900;min-width:40px;text-align:right}
 .cdnote{display:flex;gap:8px;align-items:flex-start;margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--bg2);line-height:1.4}
 .cdnote svg{flex:none;color:var(--accent);margin-top:2px}
+/* player card: previous / next on one row */
+.pnav{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+.pnav .btn{min-width:0;width:100%;justify-content:center}.pnav .btn .ellip{min-width:0}

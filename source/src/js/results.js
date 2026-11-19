@@ -271,10 +271,11 @@ function viewPlayerCard(evId, pid) {
         h('b', { class: 'num', style: 'font-size:18px' }, r.tests[t.id] == null ? '–' : fmtV(r.tests[t.id], 2) + ' ' + (t.unit || '')))))] : null,
       sect('Notes', h('span', { class: 'cnt' }, notes.length || '')),
       notes.length ? h('div', { class: 'stack', style: 'gap:6px' }, notes.map(n => h('div', { class: 'nitem' }, h('div', { class: 'pmeta' }, [n.who, n.day, n.skill].filter(Boolean).join(' · ')), h('div', null, n.text)))) : h('p', { class: 'note' }, 'No notes.'),
-      h('div', { class: 'toprow', style: 'margin-top:18px' },
-        prev ? h('button', { class: 'btn', onclick: () => goReplace('r', ev.id, prev.p.id) }, icon('back'), '#' + (prev.p.num || '–')) : null,
-        h('button', { class: 'btn', onclick: () => go('p', ev.id, 'card', pid) }, icon('file'), 'Save as PDF'),
-        next ? h('button', { class: 'btn', onclick: () => goReplace('r', ev.id, next.p.id) }, '#' + (next.p.num || '–'), icon('chev')) : null))];
+      /* previous and next player side by side, Save as PDF full width below */
+      h('div', { class: 'pnav' },
+        prev ? h('button', { class: 'btn', 'aria-label': 'Previous player', onclick: () => goReplace('r', ev.id, prev.p.id) }, icon('back'), h('span', { class: 'ellip' }, '#' + (prev.p.num || '–') + ' ' + (prev.p.name || ''))) : h('span'),
+        next ? h('button', { class: 'btn', 'aria-label': 'Next player', onclick: () => goReplace('r', ev.id, next.p.id) }, h('span', { class: 'ellip' }, '#' + (next.p.num || '–') + ' ' + (next.p.name || '')), icon('chev')) : h('span')),
+      h('button', { class: 'btn block', style: 'margin-top:10px', onclick: () => go('p', ev.id, 'card', pid) }, icon('file'), 'Save as PDF'))];
 }
 
 /* one line per evaluator and day: how much of the form they filled in, their average, notes, last change */
