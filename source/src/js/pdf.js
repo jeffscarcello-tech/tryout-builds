@@ -25,7 +25,13 @@ function makePdf(rep) {
   const line = (x1, y1, x2, y2, wdt, rgb) => ops.push((rgb || '0 0 0') + ' RG ' + wdt + ' w ' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' m ' + x2.toFixed(1) + ' ' + y2.toFixed(1) + ' l S');
   const need = hh => { if (y - hh < M + 14) { newPage(); return true; } return false; };
   newPage();
-  txt(M, y - 10, 'RosterPulse', 10, true, '1 0.541 0.122'); y -= 26;
+  // the RosterPulse mark (clipboard, checks, pulse), drawn 15 pt tall in the 512 grid of the icon
+  { const k = 15 / 512, x0 = M, y0 = y + 2;
+    ops.push('q ' + k.toFixed(5) + ' 0 0 ' + (-k).toFixed(5) + ' ' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' cm 1 J 1 j',
+      '0.133 0.133 0.169 rg 118 96 276 330 re f 0.227 0.227 0.275 rg 204 70 104 54 re f',
+      '0.965 0.965 0.973 RG 20 w 168 168 m 186 186 l 218 150 l S 244 172 m 340 172 l S 168 230 m 186 248 l 218 212 l S 244 234 m 310 234 l S',
+      '1 0.541 0.122 RG 30 w 92 362 m 186 362 l 208 326 l 240 410 l 276 280 l 300 352 l 416 352 l S Q'); }
+  txt(M + 19, y - 10, 'RosterPulse', 10, true, '1 0.541 0.122'); y -= 26;
   txt(M, y - 14, rep.title || '', 17, true); y -= 22;
   if (rep.subtitle) { txt(M, y - 9, rep.subtitle, 9, false, '0.35 0.35 0.35'); y -= 18; }
   y -= 4;
