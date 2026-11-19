@@ -22,6 +22,9 @@ function topBar(title, back, right, direct) {
 function connPill() { const on = navigator.onLine; return h('span', { class: 'conn' + (on ? '' : ' off'), 'data-conn': '' }, h('span', { class: 'dot' }), on ? 'Online' : 'Offline'); }
 const sect = (label, right) => h('div', { class: 'sect' }, label, h('span', { class: 'grow' }), right || null);
 const field = (label, input, hint) => h('div', { class: 'field' }, h('label', null, label), input, hint ? h('div', { class: 'note' }, hint) : null);
+/* RosterPulse wordmark (logo + name), used in footers and print */
+const wordmark = (cls) => h('span', { class: 'wm ' + (cls || '') }, 'Roster', h('b', null, 'Pulse'));
+const brandFoot = () => h('div', { class: 'bfoot' }, h('img', { src: '/icon.svg', alt: '' }), wordmark(), h('span', null, 'Tryouts and camps'));
 const fmtDate = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 
@@ -63,7 +66,7 @@ function viewHome() {
         h('button', { class: 'item', onclick: () => go('templates') }, icon('clip'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'My templates'), h('div', { class: 'pmeta' }, plural(S.templates.length, 'saved form', 'saved forms'))), icon('chev')),
         h('button', { class: 'item', onclick: backupSheet }, icon('dl'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Back up or restore'), h('div', { class: 'pmeta' }, 'Everything is stored on this phone for now')), icon('chev')),
         h('button', { class: 'item', onclick: checkForUpdate }, icon('history'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Check for updates'), h('div', { class: 'pmeta' }, 'Version ' + APP.build)), icon('chev'))),
-      h('p', { class: 'faint tiny center foot' }, APP.label))];
+      brandFoot(), h('p', { class: 'faint tiny center' }, APP.label))];
 }
 
 function newEventSheet() {

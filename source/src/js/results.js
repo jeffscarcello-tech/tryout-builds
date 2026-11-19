@@ -171,7 +171,7 @@ function resultsTab(ev) {
     h('p', { class: 'note', style: 'margin-top:10px' }, '⚑ = evaluators disagree a lot on a skill. Tap a ' + W.player + ' for the full card.'),
     sect('Share'),
     h('div', { class: 'toprow' },
-      h('button', { class: 'btn', onclick: () => saveFile(fileSafe(ev.name) + '-results.csv', resultsCsv(ev), 'text/csv') }, icon('dl'), 'Spreadsheet'),
+      h('button', { class: 'btn', onclick: () => saveFile('RosterPulse-' + fileSafe(ev.name) + '-results.csv', resultsCsv(ev), 'text/csv') }, icon('dl'), 'Spreadsheet'),
       h('button', { class: 'btn', onclick: () => printResults(ev) }, icon('file'), 'Print')),
     h('p', { class: 'note', style: 'margin-top:8px' }, 'Results are for you only. Ratings are never shown to ' + W.players + ' or parents unless you share them.')
   ];
@@ -272,7 +272,7 @@ function printResults(ev) {
       [val(r) == null ? '' : i + 1, r.p.num, r.p.name + (r.flagged.length ? ' ⚑' : ''), r.p.pos, gname(r.p.group), r.pct == null ? '' : fmtV(r.overall) + ' (' + Math.round(r.pct) + '%)']
         .concat(ks.map(k => r.skills[k.id] ? (f.scale === 'pcm' ? pcmLabel(r.skills[k.id].v) : fmtV(r.skills[k.id].v)) : ''), f.tests.map(t => r.tests[t.id] == null ? '' : fmtV(r.tests[t.id], 2)))
         .map(x => h('td', null, x))))));
-  const box = h('div', { class: 'printonly' }, h('h1', null, ev.name + ' · results'), h('p', null, [sportById(ev.sport).name, RS.day === 'all' ? (ev.sessions.length > 1 ? 'all days' : null) : (ev.sessions.find(d => d.id === RS.day) || {}).name, 'printed ' + new Date().toLocaleDateString()].filter(Boolean).join(' · ')), tbl);
+  const box = h('div', { class: 'printonly' }, h('div', { class: 'pbrand' }, h('img', { src: '/icon.svg', alt: '' }), h('b', null, 'RosterPulse')), h('h1', null, ev.name + ' · results'), h('p', null, [sportById(ev.sport).name, RS.day === 'all' ? (ev.sessions.length > 1 ? 'all days' : null) : (ev.sessions.find(d => d.id === RS.day) || {}).name, 'printed ' + new Date().toLocaleDateString()].filter(Boolean).join(' · ')), tbl, h('p', { class: 'pfoot' }, 'Made with RosterPulse · results are private to the organizer'));
   document.querySelectorAll('.printonly').forEach(x => x.remove()); document.body.append(box);
   document.body.classList.add('printing'); setTimeout(() => { window.print(); setTimeout(() => { document.body.classList.remove('printing'); box.remove(); }, 500); }, 50);
 }

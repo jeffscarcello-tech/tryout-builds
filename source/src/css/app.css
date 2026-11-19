@@ -129,3 +129,13 @@ textarea.inp{min-height:180px;padding:12px 14px;line-height:1.45;font-family:inh
 .rfilters select.inp.on{border-color:var(--accent);color:var(--accent)}
 .pinfo{padding:14px;border-radius:var(--r);background:var(--panel);border:1px solid var(--line)}
 .jn.big{min-width:56px;height:52px;font-size:22px}
+/* ---------- brand ---------- */
+.bfoot{display:flex;align-items:center;justify-content:center;gap:8px;margin:28px 0 6px;color:var(--muted);font-size:12px;font-weight:700}
+.bfoot img{width:22px;height:22px;border-radius:6px}
+.bfoot .wm{font-size:15px;color:var(--text)}
+.bfoot span:last-child:before{content:'·';margin-right:8px}
+.pbrand{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.pbrand img{width:20px;height:20px}
+.pbrand b{font-size:14px;color:#ff8a1f}
+.pfoot{margin-top:10px;font-size:10px;color:#666}
+@media print{ body:not(.printing) .bfoot{display:flex!important} body:not(.printing) .bfoot .wm b{color:#ff8a1f!important} }
