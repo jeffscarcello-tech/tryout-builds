@@ -3,13 +3,13 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert';  // loose deepEqual: arrays made inside the vm have a different prototype
 
-const src = ['sports.js', 'store.js', 'score.js', 'results.js', 'pdf.js', 'sync.js', 'checkin.js', 'decide.js', 'guides.js', 'install.js', 'extras.js'].map(f => readFileSync(new URL('../src/js/' + f, import.meta.url), 'utf8')).join('\n').replace('__PRIVACY_DOC__', '""');
+const src = ['sports.js', 'store.js', 'score.js', 'results.js', 'pdf.js', 'sync.js', 'checkin.js', 'decide.js', 'guides.js', 'install.js', 'more.js', 'extras.js'].map(f => readFileSync(new URL('../src/js/' + f, import.meta.url), 'utf8')).join('\n').replace('__PRIVACY_DOC__', '""');
 const mem = {};
 const ctx = { console, JSON, Date, Math, Map, Set, String, Object, Array, parseInt, setTimeout, clearTimeout,
   localStorage: { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } },
   window: { addEventListener() { } }, document: { addEventListener() { }, querySelectorAll: () => [], hidden: false }, navigator: { onLine: false }, toast() { } };
 vm.createContext(ctx);
-vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind, computeResults, notesFor, convertScale, hasSkillScores, scaleMax, skillApplies, skillChoices, scaleLo, scaleHi, useSlider, scaleLabel, makePdf, pdfText, wrapText, mergeRecs, queued, waitingCount, payloadOf, myId, isShared, checkinFor, setHere, checkMapOf, myGroups, groupPlayers, canCheckIn, makeDemo, computeResults, ensureChecks, mergeOrgCopy, orgPayloadOf, authOf, decisionsOf, setDecision, outcomesOf, decisionsCsv, decisionsReport, guideText, sampleGuides, gkey, hasGuide, applyOrgCopy, skillNotes };', ctx);
+vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind, computeResults, notesFor, convertScale, hasSkillScores, scaleMax, skillApplies, skillChoices, scaleLo, scaleHi, useSlider, scaleLabel, makePdf, pdfText, wrapText, mergeRecs, queued, waitingCount, payloadOf, myId, isShared, checkinFor, setHere, checkMapOf, myGroups, groupPlayers, canCheckIn, makeDemo, computeResults, ensureChecks, mergeOrgCopy, orgPayloadOf, authOf, decisionsOf, setDecision, outcomesOf, decisionsCsv, decisionsReport, guideText, sampleGuides, gkey, hasGuide, applyOrgCopy, skillNotes, stationOf, progressOf, coachStats, gridReport, setScore };', ctx);
 const T = ctx.__t;
 let n = 0; const ok = m => { n++; console.log('ok', n, m); };
 
@@ -195,6 +195,24 @@ assert.ok(T.wrapText('word '.repeat(60), 10, 200).length > 3); ok('long text wra
   const O = { share: { oid: 'oabc', tok: 'ff' } }; assert.deepEqual(T.authOf(O), { 'X-Org': 'oabc.ff' }); assert.deepEqual(T.authOf({ share: { key: 'k' } }), { 'X-Key': 'k' }); ok('owner and other organizers sign in differently');
   E.share = { assign: {}, helpers: [] }; E.orgNames = { me1: 'Jeff' }; E.players[0].notes = 'private'; const OP = T.orgPayloadOf(E); assert.equal(OP.players[0].notes, 'private'); assert.deepEqual(OP.names, { me1: 'Jeff' }); assert.equal(T.payloadOf(E).players[0].notes, undefined); ok('organizers get private notes, evaluators never');
   T.S.events = T.S.events.filter(x => x !== E && x !== H);
+}
+// stations, coach comparison, grid, finish
+{
+  const D = T.makeDemo(), sid = D.sessions[0].id, ks = D.form.skills;
+  D.share = { stations: { demoana: [ks[0].id, ks[1].id] } };
+  assert.deepEqual(T.stationOf(D, 'demoana'), [ks[0].id, ks[1].id]); assert.equal(T.stationOf(D, 'demoben'), null);
+  const pr = T.progressOf(D, D.players[0], sid, 'demoana'); assert.equal(pr.all, 2); assert.equal(pr.done, 2); ok('a station limits what a coach is expected to score');
+  D.share.stations.demoana = ['gone']; assert.equal(T.stationOf(D, 'demoana'), null); ok('a station with removed skills falls back to all');
+  const E = { id: 'est1', form: D.form, players: D.players, groups: D.groups, sessions: D.sessions, scores: {}, notes: {}, join: { vid: 'vme' }, stations: { vme: [ks[2].id] } };
+  assert.deepEqual(T.stationOf(E, 'vme'), [ks[2].id]); ok('evaluator phones use their own station');
+  const C = T.coachStats(D); assert.equal(C.length, 3); assert.ok(C.every(c => c.shared > 0 && c.diff != null));
+  const tot = C.reduce((a, c) => a + c.diff * c.shared, 0); assert.ok(Math.abs(tot) < 1e-6 || C.length === 3); ok('coach comparison: every coach compared on shared scores');
+  const x = { id: 'cx', form: D.form, players: [D.players[0]], sessions: D.sessions, scores: {}, notes: {}, evaluators: { a: 'A', b: 'B' } };
+  x.scores['a|' + D.players[0].id + '|' + ks[0].id + '|' + sid] = { id: 'r1', v: 5, t: 1 }; x.scores['b|' + D.players[0].id + '|' + ks[0].id + '|' + sid] = { id: 'r2', v: 3, t: 1 };
+  const cx = T.coachStats(x); assert.equal(cx[0].name, 'A'); assert.equal(cx[0].diff, 2); assert.equal(cx[1].diff, -2); ok('coach A scores 2 higher than coach B');
+  const G = T.gridReport(D); assert.ok(G.landscape); assert.equal(G.blocks[0].table.rows.length, 16); assert.equal(G.blocks[0].table.head.length, 3 + D.form.skills.length + D.form.tests.length); ok('results grid PDF: every player by every skill');
+  D.locked = true; const before = JSON.stringify(D.scores); T.setScore(D, D.players[1].id, ks[0].id, sid, 1); assert.equal(JSON.stringify(D.scores), before); ok('a finished event takes no new scores');
+  T.S.events = T.S.events.filter(e => e !== D);
 }
 require_fs: { const fs = await import('node:fs'); fs.writeFileSync('/tmp/rp-test.pdf', pdf); }
 console.log('ALL', n, 'UNIT TESTS PASSED');

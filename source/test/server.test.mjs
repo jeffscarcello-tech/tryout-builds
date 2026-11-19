@@ -32,7 +32,7 @@ let n = 0; const ok = (name) => { n++; console.log('ok', n, name); };
 
 // 1. empty site
 let r = await req('/'); assert.equal(r.status, 200); assert.match(await r.text(), /Almost/); ok('empty site shows the starting page');
-r = await req('/api/health'); let j = await r.json(); assert.equal(j.app, false); assert.equal(j.loader, 'tr-loader-t4'); ok('health before install');
+r = await req('/api/health'); let j = await r.json(); assert.equal(j.app, false); assert.equal(j.loader, 'tr-loader-t5'); ok('health before install');
 r = await req('/nope'); assert.equal(r.status, 404); ok('unknown path 404');
 
 // 2. admin password
@@ -143,5 +143,11 @@ x = await api('/api/ev/e1abcdef/leave', {}, KEY); assert.equal(x.status, 403); o
 x = await api('/api/ev/e1abcdef/orgremove', { oid: oid2 }, KEY); x = await api('/api/ev/e1abcdef/sync', { since: 0 }, O2); assert.equal(x.status, 403); ok('owner removes an organizer');
 x = await api('/api/ev/e1abcdef/orginvite', {}, KEY); x = await api('/api/ev/join', { code: x.j.code, name: 'Coach Three' }); const O3 = { 'X-Org': x.j.oid + '.' + x.j.tok };
 x = await api('/api/ev/e1abcdef/leave', {}, O3); assert.equal(x.status, 200); x = await api('/api/ev/e1abcdef/sync', { since: 0 }, O3); assert.equal(x.status, 403); ok('an organizer can leave');
+// stations and finishing
+x = await api('/api/ev/e1abcdef/put', { data: { name: 'T3', sport: 'volleyball', form: { skills: [] }, players: [{ id: 'p1' }], stations: { [vidB]: ['k1'] }, locked: false }, rev: 800 }, KEY);
+x = await api('/api/ev/e1abcdef/sync', { since: 999999, rev: 1, recs: [rec('lk1', vidB, 'p1', 3, 9900)] }, B); assert.equal(x.j.accepted, 1); assert.deepEqual(x.j.data.stations, { [vidB]: ['k1'] }); assert.equal(x.j.data.locked, false); ok('event copy carries stations; open event takes scores');
+x = await api('/api/ev/e1abcdef/put', { data: { name: 'T3', sport: 'volleyball', form: { skills: [] }, players: [{ id: 'p1' }], locked: true }, rev: 900 }, KEY);
+x = await api('/api/ev/e1abcdef/sync', { since: 999999, rev: 1, recs: [rec('lk2', vidB, 'p1', 4, 9950)] }, B); assert.equal(x.j.accepted, 0); assert.equal(x.j.data.locked, true); ok('finished event: evaluators cannot send scores');
+x = await api('/api/ev/e1abcdef/sync', { since: 999999, recs: [rec('lk3', 'orgx', 'p1', 4, 9960)] }, KEY); assert.equal(x.j.accepted, 1); ok('the organizer still can');
 x = await api('/api/ev/e1abcdef/stop', {}, KEY); assert.equal(x.status, 200); x = await api('/api/ev/e1abcdef/sync', { recs: [] }, B); assert.equal(x.status, 410); x = await api('/api/ev/join', { code, name: 'Late' }, {}, '7.7.7.7'); assert.equal(x.status, 404); ok('stop sharing: everything removed, evaluators told it is gone');
 console.log('ALL', n, 'SERVER TESTS PASSED');

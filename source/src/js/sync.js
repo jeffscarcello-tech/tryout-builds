@@ -15,13 +15,13 @@ const SYNC = { busy: {}, fails: 0, state: {}, timer: null, soon: {} };
 const isShared = ev => !!(ev && (ev.share || ev.join));
 /* what evaluators get: no private notes about players */
 const payloadOf = ev => ({ name: ev.name, sport: ev.sport, form: ev.form, groups: ev.groups, players: ev.players.map(p => ({ id: p.id, num: p.num, name: p.name, pos: p.pos, div: p.div, group: p.group, })), sessions: ev.sessions || [],
-  assign: (ev.share && ev.share.assign) || {}, helpers: (ev.share && ev.share.helpers) || [], checks: checkMapOf(ev) });
+  assign: (ev.share && ev.share.assign) || {}, helpers: (ev.share && ev.share.helpers) || [], checks: checkMapOf(ev), stations: (ev.share && ev.share.stations) || {}, locked: !!ev.locked });
 /* what other organizers get: the full setup, never scores (those are records) */
 const orgPayloadOf = ev => ({ name: ev.name, sport: ev.sport, form: ev.form, groups: ev.groups, players: ev.players, sessions: ev.sessions || [], line: ev.line || 0,
-  assign: (ev.share && ev.share.assign) || {}, helpers: (ev.share && ev.share.helpers) || [], names: ev.orgNames || {} });
+  assign: (ev.share && ev.share.assign) || {}, helpers: (ev.share && ev.share.helpers) || [], names: ev.orgNames || {}, stations: (ev.share && ev.share.stations) || {}, locked: !!ev.locked });
 function applyOrgCopy(ev, d) {
   Object.assign(ev, { name: d.name, sport: d.sport, form: d.form, groups: d.groups || [], players: d.players || [], sessions: d.sessions && d.sessions.length ? d.sessions : ev.sessions, line: d.line || 0 });
-  ev.share.assign = d.assign || {}; ev.share.helpers = d.helpers || [];
+  ev.share.assign = d.assign || {}; ev.share.helpers = d.helpers || []; ev.share.stations = d.stations || {}; ev.locked = !!d.locked;
   ev.orgNames = Object.assign({}, ev.orgNames || {}, d.names || {});
   ev.evaluators = Object.assign({}, ev.evaluators || {}, ev.orgNames);
 }
@@ -29,7 +29,7 @@ function applyOrgCopy(ev, d) {
    base = what this phone last sent. Lists (players, groups, days) merge item by item; other parts: whoever changed it. */
 function mergeOrgCopy(base, mine, theirs) {
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b), out = {};
-  for (const k of ['name', 'sport', 'form', 'line', 'assign', 'helpers']) out[k] = same(mine[k], base[k]) ? theirs[k] : mine[k];
+  for (const k of ['name', 'sport', 'form', 'line', 'assign', 'helpers', 'stations', 'locked']) out[k] = same(mine[k], base[k]) ? theirs[k] : mine[k];
   for (const k of ['players', 'groups', 'sessions']) {
     const b = new Map((base[k] || []).map(x => [x.id, x])), m = new Map((mine[k] || []).map(x => [x.id, x])), t = new Map((theirs[k] || []).map(x => [x.id, x]));
     const ids = [...new Set([...(theirs[k] || []).map(x => x.id), ...(mine[k] || []).map(x => x.id)])], list = [];
@@ -100,7 +100,7 @@ async function syncEvent(ev) {
       for (const o of boxes(ev)) for (const k in o) if (o[k] && o[k].q && sent.has(o[k].id)) delete o[k].q;
       got += mergeRecs(ev, j.recs);
       box.since = j.seq;
-      if (j.data && ev.join) { Object.assign(ev, { name: j.data.name, sport: j.data.sport, form: j.data.form, groups: j.data.groups, players: j.data.players, sessions: j.data.sessions && j.data.sessions.length ? j.data.sessions : ev.sessions, assign: j.data.assign || {}, helpers: j.data.helpers || [], checkMap: j.data.checks || {} }); ev.join.rev = j.rev; got++; }
+      if (j.data && ev.join) { Object.assign(ev, { name: j.data.name, sport: j.data.sport, form: j.data.form, groups: j.data.groups, players: j.data.players, sessions: j.data.sessions && j.data.sessions.length ? j.data.sessions : ev.sessions, assign: j.data.assign || {}, helpers: j.data.helpers || [], checkMap: j.data.checks || {}, stations: j.data.stations || {}, locked: !!j.data.locked }); ev.join.rev = j.rev; got++; }
       if (j.odata && ev.share) {   // another organizer changed the setup
         const mine = orgPayloadOf(ev), unsent = ev.share.osent && JSON.stringify(mine) !== ev.share.osent;
         if (!unsent) { applyOrgCopy(ev, j.odata); ev.share.osent = JSON.stringify(orgPayloadOf(ev)); }
@@ -132,7 +132,7 @@ function syncSoon(ev) {
 async function syncTick() {
   clearTimeout(SYNC.timer);
   if (document.visibilityState === 'visible') {
-    const cur = (['e', 's', 'r', 'c', 'm', 'k', 'x'].includes(R.name)) ? eventById(R.args[0]) : null;
+    const cur = (['e', 's', 'r', 'c', 'm', 'k', 'x', 'rg', 'cc'].includes(R.name)) ? eventById(R.args[0]) : null;
     for (const ev of S.events) {
       if (!isShared(ev)) continue;
       if (ev === cur || waitingCount(ev) || (R.name === 'home' && ev.join)) { const changed = await syncEvent(ev); refreshSyncUi(ev, changed); }
@@ -144,7 +144,7 @@ async function syncTick() {
 function refreshSyncUi(ev, changed) {
   document.querySelectorAll('[data-sync="' + ev.id + '"]').forEach(el => el.replaceWith(syncPill(ev)));
   if (!changed) return;
-  const onIt = (['e', 's', 'r', 'c', 'm', 'k', 'x'].includes(R.name)) && R.args[0] === ev.id;
+  const onIt = (['e', 's', 'r', 'c', 'm', 'k', 'x', 'rg', 'cc'].includes(R.name)) && R.args[0] === ev.id;
   const a = document.activeElement, typing = a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName);
   if ((onIt || R.name === 'home') && !typing && !document.querySelector('.sheet')) render();
 }
@@ -254,7 +254,8 @@ function evalSettings(ev, x) {
     refill(box,
       ev.groups.length ? h('div', { class: 'chips' }, h('button', { class: 'chip sm' + (mine.length ? '' : ' on'), onclick: () => { delete sh.assign[x.vid]; changed(); } }, 'All groups'),
         ev.groups.map(g => h('button', { class: 'chip sm' + (mine.includes(g.id) ? ' on' : ''), onclick: () => { const a = mine.includes(g.id) ? mine.filter(y => y !== g.id) : mine.concat(g.id); if (a.length) sh.assign[x.vid] = a; else delete sh.assign[x.vid]; changed(); } }, g.name))) : null,
-      h('button', { class: 'chip sm' + (helper ? ' on' : ''), style: 'margin-top:6px', onclick: () => { sh.helpers = helper ? sh.helpers.filter(y => y !== x.vid) : sh.helpers.concat(x.vid); changed(); } }, helper ? icon('check', 14) : null, 'Can check in ' + W.players));
+      h('button', { class: 'chip sm' + (helper ? ' on' : ''), style: 'margin-top:6px', onclick: () => { sh.helpers = helper ? sh.helpers.filter(y => y !== x.vid) : sh.helpers.concat(x.vid); changed(); } }, helper ? icon('check', 14) : null, 'Can check in ' + W.players),
+      h('button', { class: 'chip sm' + (((sh.stations || {})[x.vid] || []).length ? ' on' : ''), style: 'margin-top:6px;margin-left:6px', onclick: () => stationSheet(ev, x) }, icon('target', 14), 'Station: ' + stationLabel(ev, x.vid)));
   };
   paint(); return box;
 }
@@ -282,7 +283,7 @@ function joinSheet(code0) {
           if (!me().name) me().name = n;
           const d = j.odata || j.data, ev = Object.assign({ id: j.eid, created: Date.now(), updated: Date.now(), scores: {}, notes: {}, checks: {}, decs: {}, evaluators: {} }, { sport: d.sport, name: d.name, form: d.form, groups: d.groups || [], players: d.players || [], sessions: d.sessions && d.sessions.length ? d.sessions : [{ id: 'd1', name: 'Day 1' }] },
             { share: { code: j.code, oid: j.oid, tok: j.tok, since: 0, rev: j.rev, orev: j.orev || 0, sent: '', osent: '' } });
-          ev.share.assign = d.assign || {}; ev.share.helpers = d.helpers || []; ev.line = d.line || 0; ev.orgNames = Object.assign({}, d.names || {}, { [me().id]: n }); ev.evaluators = Object.assign({}, ev.orgNames);
+          ev.share.assign = d.assign || {}; ev.share.helpers = d.helpers || []; ev.share.stations = d.stations || {}; ev.locked = !!d.locked; ev.line = d.line || 0; ev.orgNames = Object.assign({}, d.names || {}, { [me().id]: n }); ev.evaluators = Object.assign({}, ev.orgNames);
           ev.share.osent = JSON.stringify(orgPayloadOf(ev)); ev.share.sent = JSON.stringify(payloadOf(ev));
           S.events.unshift(ev); save(true); api_.close(); go('e', ev.id, 'results'); toast('You are an organizer of ' + ev.name + '. Scores are coming in.');
           syncSoon(ev); return;
@@ -313,6 +314,8 @@ function viewEvalEvent(ev) {
     h('main', { class: 'page' },
       h('div', { class: 'pmeta', style: 'margin:-4px 0 12px' }, sportById(ev.sport).name + ' · you are scoring as ' + ev.join.name),
       installCard(),
+      lockedBanner(ev),
+      stationOf(ev, myId(ev)) ? h('p', { class: 'note', style: 'margin-bottom:10px' }, 'Your station: ' + allSkills(ev).concat(ev.form.tests).filter(k => stationOf(ev, myId(ev)).includes(k.id)).map(k => k.name).join(', ') + '.') : null,
       tip('evaluator', 'Tap Start scoring and type a jersey number. Scores save on this phone and go to the organizer when there is signal, so you can keep going in a gym with no reception.'),
       blocked ? h('div', { class: 'empty' }, ev.join.gone ? 'The organizer stopped sharing this event. Your scores were sent before that.' : 'The organizer removed you from this event.')
         : [h('button', { class: 'btn primary block big', onclick: () => startScoring(ev) }, icon('check'), 'Start scoring'),

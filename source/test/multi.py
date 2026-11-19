@@ -98,6 +98,20 @@ with sync_playwright() as p:
     sheet(org).locator('button', has_text='Save').last.click(); org.wait_for_selector('text=New K')
     wait_for(lambda: any(pl.get('name') == 'New K' for pl in state(e1)['events'][0]['players']), 'new player reached evaluator 1', 40)
 
+    # station: evaluator 1 scores only one skill
+    org.evaluate("location.hash = '#/e/%s/players'" % evid); org.wait_for_selector('text=Import list')
+    org.click('text=Evaluators · ' + code); org.wait_for_selector('.erow')
+    org.locator('.erow', has_text='Coach A').locator('button', has_text='Station').click(); org.wait_for_selector('text=Coach A\'s station')
+    org.locator('.sheet').last.locator('.chip', has_text='Passing').click(); time.sleep(0.2)
+    org.locator('.sheet').last.locator('button', has_text='Done').click(); time.sleep(0.3)
+    if org.locator('.sheet').count(): org.locator('.sheet button', has_text='Done').last.click()
+    vidA0 = state(e1)['events'][0]['join']['vid']
+    wait_for(lambda: (state(e1)['events'][0].get('stations') or {}).get(vidA0), 'station reached evaluator 1', 40)
+    e1.click('button[aria-label="Back"]'); e1.wait_for_selector('.keypad'); e1.locator('.key', has_text='9').click(); e1.wait_for_selector('.srow')
+    assert e1.locator('.srow').count() == 1 and 'Passing' in e1.inner_text('main'), 'station: only Passing to score'
+    e1.screenshot(path='test/multi-4a-station.png')
+    e1.click('button[aria-label="Back"]'); e1.click('button[aria-label="Back"]'); e1.wait_for_selector('text=Start scoring')
+
     # let evaluator 1 check players in; their check-in reaches the organizer and back out to everyone
     org.click('text=Evaluators · ' + code); org.wait_for_selector('.erow')
     org.locator('.erow', has_text='Coach A').locator('button', has_text='Can check in').click(); time.sleep(0.3)
@@ -105,7 +119,7 @@ with sync_playwright() as p:
     sheet(org).locator('button', has_text='Done').click()
     vidA = state(e1)['events'][0]['join']['vid']
     wait_for(lambda: vidA in (state(e1)['events'][0].get('helpers') or []), 'helper permission reached evaluator 1', 40)
-    e1.click('button[aria-label="Back"]'); e1.click('button[aria-label="Back"]'); e1.wait_for_selector('text=Check in players')
+    e1.wait_for_selector('text=Check in players')
     e1.click('text=Check in players'); e1.wait_for_selector('.ckrow')
     e1.locator('.ckrow', has_text='Jo P').click(); e1.locator('.ckrow', has_text='Sam L').click(); time.sleep(0.3)
     assert e1.locator('.ckrow.on').count() == 2
@@ -156,6 +170,16 @@ with sync_playwright() as p:
     org.locator('button[aria-label="Remove Coach Two"]').click(); org.locator('.sheet button', has_text='Remove').last.click(); time.sleep(0.5)
     org.locator('.sheet button', has_text='Done').last.click()
     wait_for(lambda: state(o2)['events'][0]['share'].get('removed'), 'second organizer told they were removed', 40)
+
+    # finish the event: evaluator 1 sees scoring closed
+    org.evaluate("location.hash = '#/e/%s/players'" % evid); org.wait_for_selector('text=Import list')
+    org.click('button[aria-label="Event options"]'); org.locator('.sheet .item', has_text='Finish event').click(); org.locator('.sheet button', has_text='Finish event').last.click()
+    org.wait_for_selector('.lockbar')
+    wait_for(lambda: state(e1)['events'][0].get('locked'), 'finished flag reached evaluator 1', 40)
+    e1.wait_for_selector('.lockbar'); e1.locator('button', has_text='Start scoring').click(); time.sleep(0.4)
+    assert e1.locator('.keypad').count() == 0, 'scoring closed on the evaluator phone'
+    org.locator('.lockbar button', has_text='Unlock').click(); org.wait_for_selector('.lockbar', state='detached')
+    wait_for(lambda: not state(e1)['events'][0].get('locked'), 'unlock reached evaluator 1', 40)
 
     # remove evaluator 2
     org.click('text=Evaluators · ' + code); org.wait_for_selector('text=Coach B')

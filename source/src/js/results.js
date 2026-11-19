@@ -184,6 +184,7 @@ function resultsTab(ev) {
     if (line && i === line - 1 && scored.length > line) list.push(h('div', { class: 'tline' }, h('span', null, 'Team line · ' + line + ' spots')));
   });
   return [
+    lockedBanner(ev),
     tip('results', 'Sort by overall or any skill, filter by ' + W.position + ' or group, and move the team line with − and +. Tap a ' + W.player + ' for their full card. Save as PDF makes a file you can print or email.'),
     h('div', { class: 'rfilters' },
       h('div', { class: 'row' }, h('span', { class: 'lbl', style: 'min-width:54px' }, 'Sort'), h('div', { class: 'grow' }, sel('Sort by', RS.sort, sortOpts, v => { RS.sort = v || 'overall'; }, true))),
@@ -207,6 +208,9 @@ function resultsTab(ev) {
     h('div', { class: 'toprow' },
       h('button', { class: 'btn', onclick: () => compareSheet(ev) }, icon('users'), 'Compare'),
       h('button', { class: 'btn', onclick: () => go('m', ev.id) }, icon('history'), 'Missing scores')),
+    h('div', { class: 'toprow', style: 'margin-top:8px' },
+      h('button', { class: 'btn', onclick: () => go('rg', ev.id) }, icon('stats'), 'Results grid'),
+      h('button', { class: 'btn', onclick: () => go('cc', ev.id) }, icon('users'), 'Coach comparison')),
     sect('Share'),
     h('div', { class: 'toprow' },
       h('button', { class: 'btn', onclick: () => saveFile('RosterPulse-' + fileSafe(ev.name) + '-results.csv', resultsCsv(ev), 'text/csv') }, icon('dl'), 'Spreadsheet'),
@@ -344,10 +348,10 @@ function reportHtml(rep) {
 function viewPrint(evId, kind, pid) {
   const ev = eventById(evId); if (!ev) return viewHome();
   ensureDays(ev); W = wordsOf(ev);
-  const rep = kind === 'card' ? cardReport(ev, pid) : kind === 'decisions' ? decisionsReport(ev) : resultsReport(ev);
+  const rep = kind === 'card' ? cardReport(ev, pid) : kind === 'decisions' ? decisionsReport(ev) : kind === 'grid' ? gridReport(ev) : resultsReport(ev);
   if (!rep) return viewEvent(evId, 'results');
-  const fname = 'RosterPulse-' + fileSafe(ev.name) + (kind === 'card' ? '-' + fileSafe(rep.title) : kind === 'decisions' ? '-decisions' : '-results') + '.pdf';
-  return [topBar('Print or save', kind === 'card' ? ['r', ev.id, pid] : kind === 'decisions' ? ['x', ev.id] : ['e', ev.id, 'results']),
+  const fname = 'RosterPulse-' + fileSafe(ev.name) + (kind === 'card' ? '-' + fileSafe(rep.title) : kind === 'decisions' ? '-decisions' : kind === 'grid' ? '-grid' : '-results') + '.pdf';
+  return [topBar('Print or save', kind === 'card' ? ['r', ev.id, pid] : kind === 'decisions' ? ['x', ev.id] : kind === 'grid' ? ['rg', ev.id] : ['e', ev.id, 'results']),
     h('main', { class: 'page' },
       h('button', { class: 'btn primary block big ptool', onclick: () => saveFile(fname, makePdf(rep), 'application/pdf') }, icon('dl'), 'Save as PDF'),
       h('p', { class: 'note ptool', style: 'margin:8px 0 6px' }, 'Then pick Print, Save to Files, Mail or Messages from your phone\'s share menu.'),

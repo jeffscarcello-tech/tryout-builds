@@ -71,6 +71,7 @@ function shownScore(ev, pid, kid, sid, by) {
   return { v: null, carried: null };
 }
 function setScore(ev, pid, kid, sid, v) {
+  if (ev.locked) { toast('This event is finished. Scores are locked.'); return; }
   ev.scores = ev.scores || {};
   ev.evaluators = ev.evaluators || {}; if (myName(ev)) ev.evaluators[myId(ev)] = myName(ev);
   if (!ev.join && myName(ev) && (ev.orgNames || {})[myId(ev)] !== myName(ev)) ev.orgNames = Object.assign({}, ev.orgNames, { [myId(ev)]: myName(ev) });
@@ -79,12 +80,12 @@ function setScore(ev, pid, kid, sid, v) {
   touch(ev);
 }
 function getNote(ev, pid, kid, sid) { const r = ev.notes && ev.notes[sKey(myId(ev), pid, kid, sid)]; return r ? r.v : ''; }
-function setNote(ev, pid, kid, sid, v) { ev.notes = ev.notes || {}; ev.notes[sKey(myId(ev), pid, kid, sid)] = { id: uid('r'), v: clean(v, 300), t: Date.now(), q: 1 }; touch(ev); syncSoon(ev); }
+function setNote(ev, pid, kid, sid, v) { if (ev.locked) { toast('This event is finished. Notes are locked.'); return; } ev.notes = ev.notes || {}; ev.notes[sKey(myId(ev), pid, kid, sid)] = { id: uid('r'), v: clean(v, 300), t: Date.now(), q: 1 }; touch(ev); syncSoon(ev); }
 /* how many of this player's skills (and tests) this evaluator has filled in on this day (carried scores count) */
 function progressOf(ev, p, sid, by) {
-  const ks = skillsFor(ev, p), all = ks.length + ev.form.tests.length;
-  let done = 0; for (const k of ks.concat(ev.form.tests)) if (shownScore(ev, p.id, k.id, sid, by).v != null) done++;
-  return { done, all };
+  const st = stationOf(ev, by || myId(ev)), items = skillsFor(ev, p).concat(ev.form.tests).filter(k => !st || st.includes(k.id));
+  let done = 0; for (const k of items) if (shownScore(ev, p.id, k.id, sid, by).v != null) done++;
+  return { done, all: items.length };
 }
 /* players in a group ('all' = everyone this phone scores: an evaluator given certain groups sees only those) */
 const groupPlayers = (ev, gid) => { const mine = myGroups(ev); return sortPlayers(ev.players.filter(p => !gid || gid === 'all' ? (!mine || mine.includes(p.group)) : p.group === gid)); };
@@ -96,6 +97,7 @@ async function ensureEvaluatorName() {
   if (!v) return false; m.name = v; save(true); return true;
 }
 async function startScoring(ev) {
+  if (ev.locked) { toast(ev.join ? 'The organizer has finished this event. Scoring is closed.' : 'This event is finished. Unlock it (••• menu) to score again.'); return; }
   ensureDays(ev);
   if (!ev.players.length) { toast('Add ' + W.players + ' first.'); return; }
   if (!ev.join && !(await ensureEvaluatorName())) return;
@@ -175,8 +177,8 @@ function skillApplies(ev, p, kid) {
   return isAlt ? p.pos === f.alt.pos : p.pos !== f.alt.pos;
 }
 function skillChoices(ev) {
-  const f = ev.form;
-  return f.skills.map(k => [k, k.name]).concat(f.alt ? f.alt.skills.map(k => [k, k.name + ' (' + f.alt.pos.toLowerCase() + 's)']) : [], f.tests.map(t => [Object.assign({ test: true }, t), t.name + (t.unit ? ' (' + t.unit + ')' : '')]));
+  const f = ev.form, st = stationOf(ev, myId(ev));
+  return f.skills.map(k => [k, k.name]).concat(f.alt ? f.alt.skills.map(k => [k, k.name + ' (' + f.alt.pos.toLowerCase() + 's)']) : [], f.tests.map(t => [Object.assign({ test: true }, t), t.name + (t.unit ? ' (' + t.unit + ')' : '')])).filter(([k]) => !st || st.includes(k.id));
 }
 
 /* ---------------- by skill: one skill, every player ---------------- */
@@ -220,7 +222,8 @@ function viewScorePlayer(evId, sid, gid, pid) {
   if (!ev || !p) return viewScoreList(evId, sid, gid);
   ensureDays(ev); W = wordsOf(ev);
   const day = dayById(ev, sid); sid = day.id;
-  const ks = skillsFor(ev, p), pr = progressOf(ev, p, sid);
+  const st = stationOf(ev, myId(ev)), inSt = k => !st || st.includes(k.id);
+  const ks = skillsFor(ev, p).filter(inSt), tests = ev.form.tests.filter(inSt), pr = progressOf(ev, p, sid);
   const ci = checkinFor(ev, sid), list = groupPlayers(ev, gid), i = list.findIndex(x => x.id === p.id);
   const nextUnscored = list.slice(i + 1).concat(list.slice(0, i)).find(x => { const q = progressOf(ev, x, sid); return q.done < q.all && ci.isHere(x); });
   const noteBtn = k => skillNoteBtn(ev, p, k, sid);
@@ -246,8 +249,9 @@ function viewScorePlayer(evId, sid, gid, pid) {
       h('div', { class: 'pmeta', style: 'margin:-4px 0 10px' }, [p.pos, p.div, ev.sessions.length > 1 ? day.name : null, ci.isHere(p) ? null : 'not checked in'].filter(Boolean).join(' · ') || ' '),
       tip('scoreplayer', 'Tap a score. Tap it again to clear it. The small + beside a skill adds a note. Next goes to the next ' + W.player + ' not fully scored.'),
       ev.form.combine === 'carry' && ev.sessions.length > 1 && ev.sessions[0].id !== sid ? h('p', { class: 'note', style: 'margin-bottom:10px' }, 'Faded scores are carried from an earlier day. Tap a score to change it for ' + day.name + '.') : null,
-      ks.length ? h('div', { class: 'stack' }, ks.map(row)) : h('div', { class: 'empty' }, 'This form has no skills. Add some in the Form tab.'),
-      ev.form.tests.length ? [sect('Measured tests'), h('div', { class: 'stack' }, ev.form.tests.map(testRow))] : null,
+      st ? h('p', { class: 'note', style: 'margin-bottom:10px' }, 'Your station: ' + plural(ks.length + tests.length, 'skill', 'skills') + ' to score.') : null,
+      ks.length ? h('div', { class: 'stack' }, ks.map(row)) : tests.length ? null : h('div', { class: 'empty' }, 'This form has no skills. Add some in the Form tab.'),
+      tests.length ? [sect('Measured tests'), h('div', { class: 'stack' }, tests.map(testRow))] : null,
       sect('Overall note'), notes,
       h('div', { class: 'toprow', style: 'margin-top:18px' },
         h('button', { class: 'btn', onclick: () => go('s', ev.id, sid, gid) }, 'All ' + W.players),

@@ -1,6 +1,8 @@
 // =====================================================================
 // Tryout app server (Cloudflare Worker). Test site: Worker "tryouttest", D1 database "tryouttest" bound as DB.
 //
+// t5: stations (skills per evaluator) and the finished flag carried in the event copy; evaluators cannot send
+//     scores, notes or check-ins once the organizer finishes (locks) the event.
 // t4: several organizers per event (the owner invites more with one-time 8-character codes; each gets its own token),
 //     an organizer copy of the event (full roster with private notes, outcomes, team line) shared between organizers only,
 //     team decisions as records (kind 'x', organizers only).
@@ -16,7 +18,7 @@
 //
 // Health check: GET /api/health
 // =====================================================================
-const LOADER = 'tr-loader-t4';
+const LOADER = 'tr-loader-t5';
 const APP_KIND = 'tryout';          // only app files built for this app are accepted (a ShotPulse file is refused)
 const ADMIN_SALT = 'tr-admin:';
 
@@ -161,7 +163,8 @@ function eventData(d) {
   const o = { name: cleanTxt(d.name, 60), sport: cleanTxt(d.sport, 20), form: d.form, groups: Array.isArray(d.groups) ? d.groups : [], players: Array.isArray(d.players) ? d.players : [], sessions: Array.isArray(d.sessions) ? d.sessions : [],
     helpers: Array.isArray(d.helpers) ? d.helpers.map(String).filter(x => ID_RE.test(x)).slice(0, MAX_EVALS) : [],
     assign: d.assign && typeof d.assign === 'object' && !Array.isArray(d.assign) ? d.assign : {},
-    checks: d.checks && typeof d.checks === 'object' && !Array.isArray(d.checks) ? d.checks : {} };
+    checks: d.checks && typeof d.checks === 'object' && !Array.isArray(d.checks) ? d.checks : {},
+    stations: d.stations && typeof d.stations === 'object' && !Array.isArray(d.stations) ? d.stations : {}, locked: !!d.locked };
   if (!o.form || typeof o.form !== 'object' || o.players.length > 1500) return null;
   return o;
 }
@@ -252,8 +255,9 @@ async function handleShared(request, env, p) {
     if (who.role === 'eval' && now - (who.seen || 0) > 60000) await db.prepare('UPDATE seval SET seen = ?1 WHERE eid = ?2 AND vid = ?3').bind(now, eid, who.vid).run();
     if (who.oid && now - (who.seen || 0) > 60000) await db.prepare('UPDATE sorg SET seen = ?1 WHERE eid = ?2 AND oid = ?3').bind(now, eid, who.oid).run();
     const recs = (Array.isArray(body.recs) ? body.recs : []).slice(0, MAX_RECS_IN), good = [];
-    let helper = who.role === 'org';
-    if (!helper && recs.some(r => r && r.k === 'c')) { const d = await db.prepare('SELECT data FROM sev WHERE eid = ?1').bind(eid).first(); try { helper = (JSON.parse(d.data).helpers || []).includes(who.vid); } catch (e) { helper = false; } }
+    let helper = who.role === 'org', closed = false;
+    if (who.role === 'eval' && recs.length) { const d = await db.prepare('SELECT data FROM sev WHERE eid = ?1').bind(eid).first(); try { const dd = JSON.parse(d.data); helper = (dd.helpers || []).includes(who.vid); closed = !!dd.locked; } catch (e) { helper = false; } }
+    if (closed) recs.length = 0;   // the organizer finished the event: evaluators can no longer send
     for (const r of recs) {
       if (!r || !RID_RE.test(String(r.id)) || (r.k !== 's' && r.k !== 'n' && r.k !== 'c' && r.k !== 'x')) continue;
       if (r.k === 'x' && (who.role !== 'org' || (r.v != null && !ID_RE.test(String(r.v))))) continue;   // team decisions: organizers only

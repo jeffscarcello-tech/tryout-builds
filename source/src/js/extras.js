@@ -104,6 +104,15 @@ const HELP = [
   ['Your data', [
     'Events live on this phone. Home, Back up or restore saves a file you can keep or move to a new phone.',
     'Shared events are also kept on the RosterPulse server until you stop sharing. See Privacy for details.']],
+  ['Stations, finishing and copying', [
+    'Stations: in the Share sheet, under a coach, tap Station and pick the skills they score (for example serving and passing at court 1). Their scoring screen shows only those.',
+    'Finish event (••• menu) locks scoring and notes on every phone when the tryout is over. Results, decisions and exports still work. Unlock any time.',
+    'Copy this event (••• menu) starts a new one with the same form, and the roster, groups and days if you want, with no scores. Good for next season or another age group.']],
+  ['Results grid and coach comparison', [
+    'Results tab, More: Results grid shows every player by every skill, coloured from red (lower) to green (higher). It saves as a PDF too.',
+    'Coach comparison shows whether each coach scores higher or lower than the other coaches on the same players. It is only a view: results are not changed.']],
+  ['Bright light mode', [
+    'Home, More: Bright light mode switches to white screens that are easier to read in sun or bright rinks.']],
   ['Install on your phone', [
     'Home, More, Add to Home Screen shows the steps for iPhone, Android and computers. Installed, it opens like an app and works with no signal.',
     'On iPhone, install before setting up events: the Home Screen app keeps its own copy, separate from Safari.']],

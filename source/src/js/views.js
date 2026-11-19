@@ -75,6 +75,7 @@ function viewHome() {
         h('button', { class: 'item', onclick: () => go('templates') }, icon('clip'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'My templates'), h('div', { class: 'pmeta' }, plural(S.templates.length, 'saved form', 'saved forms'))), icon('chev')),
         h('button', { class: 'item', onclick: backupSheet }, icon('dl'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Back up or restore'), h('div', { class: 'pmeta' }, 'Everything is stored on this phone for now')), icon('chev')),
         isInstalled() ? null : h('button', { class: 'item', onclick: () => installSheet() }, icon('phone'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Add to Home Screen'), h('div', { class: 'pmeta' }, 'Opens like an app, works with no signal')), icon('chev')),
+        h('button', { class: 'item', onclick: toggleGlare }, icon('eye'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Bright light mode'), h('div', { class: 'pmeta' }, S.settings.glare ? 'On: white screens for sun and bright rinks' : 'Off: white screens for sun and bright rinks')), h('span', { class: 'cnt' }, S.settings.glare ? 'On' : 'Off')),
         h('button', { class: 'item', onclick: () => go('help') }, icon('help'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Help'), h('div', { class: 'pmeta' }, 'How it works, step by step')), icon('chev')),
         h('button', { class: 'item', onclick: () => go('privacy') }, icon('eye'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Privacy'), h('div', { class: 'pmeta' }, 'What is stored, where, and for how long')), icon('chev')),
         h('a', { class: 'item', href: 'https://shotpulse.app', target: '_blank', rel: 'noopener' }, icon('stats'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'ShotPulse'), h('div', { class: 'pmeta' }, 'Game stats for the season, from the same maker')), icon('chev')),
@@ -130,6 +131,8 @@ function eventMenu(ev) {
     s.append(h('h2', null, ev.name), h('div', { class: 'list' },
       row('qr', ev.share ? 'Evaluators, organizers and codes' : 'Share with evaluators and organizers', () => shareSheet(ev)),
       row('target', 'Team decisions', () => go('x', ev.id)),
+      row('copy', 'Copy this event', () => copyEventSheet(ev)),
+      ev.locked ? row('history', 'Unlock scoring', () => finishEvent(ev, false)) : row('check', 'Finish event (lock scoring)', () => finishEvent(ev, true)),
       row('edit', 'Rename event', async () => { const v = await promptBox({ title: 'Event name', value: ev.name, max: 60 }); if (v) { ev.name = v; touch(ev); render(); } }),
       row('copy', 'Copy event (same form and groups, no ' + W.players + ')', () => {
         const c = newEvent(ev.name + ' (copy)', ev.sport, ev.form);
@@ -155,8 +158,9 @@ function playersTab(ev) {
   const unassigned = ev.players.filter(p => !groupsById[p.group]).length;
   const ci = checkinFor(ev, todayDay(ev));
   return [
+    lockedBanner(ev),
     tip('players', 'Add ' + W.players + ' one at a time or paste a list. Start scoring to score on this phone. Share with evaluators lets other coaches score on their own phones.'),
-    ev.players.length ? h('button', { class: 'btn primary block big', style: 'margin-bottom:12px', onclick: () => startScoring(ev) }, icon('check'), 'Start scoring') : null,
+    ev.players.length && !ev.locked ? h('button', { class: 'btn primary block big', style: 'margin-bottom:12px', onclick: () => startScoring(ev) }, icon('check'), 'Start scoring') : null,
     ev.players.length ? h('div', { class: 'toprow', style: 'margin-bottom:12px' },
       h('button', { class: 'btn', onclick: () => shareSheet(ev) }, icon('qr'), ev.share ? 'Evaluators · ' + ev.share.code : 'Share with evaluators'),
       h('button', { class: 'btn', onclick: () => go('k', ev.id, todayDay(ev)) }, icon('check'), ci.used ? 'Check-in · ' + ci.count + '/' + ev.players.length : 'Check-in')) : null,
@@ -217,7 +221,7 @@ function importSheet(ev) {
   let mode = 'add', parsed = null;
   openSheet((s, api) => {
     const ta = h('textarea', { class: 'inp', placeholder: 'One ' + W.player + ' per line, for example:\n12 Sam Lee\n7 Jordan Park, ' + (ev.form.positions[0] || cap(W.position)) + '\n\nOr paste rows from a spreadsheet (with a header row like Number, Name, Position, Division, Group).' });
-    const file = h('input', { type: 'file', accept: '.csv,.tsv,.txt,text/csv,text/plain', style: 'display:none' });
+    const file = h('input', { type: 'file', accept: '.csv,.tsv,.txt,.xlsx,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', style: 'display:none' });
     const out = h('div');
     const preview = () => {
       parsed = parseRoster(ta.value, ev.form);
@@ -230,7 +234,11 @@ function importSheet(ev) {
         dup.size ? h('p', { class: 'warn', style: 'margin-top:8px' }, 'Some numbers appear twice. You can fix them after importing.') : null);
     };
     ta.addEventListener('input', () => { clearTimeout(ta._t); ta._t = setTimeout(preview, 250); });
-    file.addEventListener('change', async () => { const f = file.files[0]; if (!f) return; if (f.size > 2e6) { toast('That file is too big.'); return; } ta.value = await f.text(); preview(); });
+    file.addEventListener('change', async () => {
+      const f = file.files[0]; if (!f) return; if (f.size > 5e6) { toast('That file is too big.'); return; }
+      try { ta.value = /\.xlsx$/i.test(f.name) ? await xlsxToText(f) : await f.text(); preview(); } catch (e) { toast(e.message || 'Could not read that file.'); }
+      file.value = '';
+    });
     const modeSeg = h('div', { class: 'seg' }), paintMode = () => modeSeg.replaceChildren([['add', 'Add to list'], ['replace', 'Replace list']].map(([k, l]) => h('button', { class: mode === k ? 'on' : '', onclick: () => { mode = k; paintMode(); preview(); } }, l)));
     paintMode();
     const doImport = async () => {
@@ -247,7 +255,7 @@ function importSheet(ev) {
       touch(ev); api.close(); render(); toast(plural(parsed.players.length, W.player, W.players) + ' added' + (made ? ', ' + plural(made, 'group', 'groups') + ' created' : '') + '.');
     };
     s.append(h('h2', null, 'Import a list'), h('div', { class: 'stack' }, ta,
-      h('button', { class: 'btn', onclick: () => file.click() }, icon('file'), 'Choose a CSV file'), file,
+      h('button', { class: 'btn', onclick: () => file.click() }, icon('file'), 'Choose a file (Excel or CSV)'), file,
       ev.players.length ? modeSeg : null),
       out, h('div', { class: 'acts' }, h('button', { class: 'btn', onclick: () => api.close() }, 'Cancel'), h('button', { class: 'btn primary', onclick: doImport }, 'Import')));
   });
