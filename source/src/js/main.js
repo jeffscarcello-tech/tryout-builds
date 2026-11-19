@@ -55,7 +55,7 @@ function render() {
   const evNow = ['e', 's', 'r', 'p', 'c', 'm', 'k'].includes(R.name) ? eventById(R.args[0]) : null;
   document.title = evNow ? evNow.name + ' · RosterPulse' : 'RosterPulse';
   /* every page but home ends with the RosterPulse mark */
-  if (R.name !== 'home' && R.name !== 'p' && R.name) { const v = [].concat(view).flat(Infinity).filter(Boolean); const m = v.find(x => x.tagName === 'MAIN'); if (m) m.append(brandFoot()); }
+  if (R.name !== 'p') { const v = [].concat(view).flat(Infinity).filter(Boolean); const m = v.find(x => x.tagName === 'MAIN'); if (m) m.append(brandFoot()); }
   app.replaceChildren(...[].concat(view).flat(Infinity).filter(Boolean));
   if (same) window.scrollTo(0, y); else window.scrollTo(0, 0);
   lastRoute = key;

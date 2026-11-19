@@ -17,6 +17,7 @@ function brandBar(right) {
 function topBar(title, back, right, direct) {
   return h('header', { class: 'top' },
     h('button', { class: 'iconbtn', 'aria-label': 'Back', onclick: () => direct ? goReplace(...[].concat(back)) : goBack(back) }, icon('back')),
+    h('button', { class: 'iconbtn homebtn', 'aria-label': 'Home', title: 'Home', onclick: () => go('home') }, icon('home')),
     h('div', { class: 'title ellip grow' }, title), right);
 }
 function connPill() { const on = navigator.onLine; return h('span', { class: 'conn' + (on ? '' : ' off'), 'data-conn': '' }, h('span', { class: 'dot' }), on ? 'Online' : 'Offline'); }
@@ -24,7 +25,7 @@ const sect = (label, right) => h('div', { class: 'sect' }, label, h('span', { cl
 const field = (label, input, hint) => h('div', { class: 'field' }, h('label', null, label), input, hint ? h('div', { class: 'note' }, hint) : null);
 /* RosterPulse wordmark (logo + name), used in footers and print */
 const wordmark = (cls) => h('span', { class: 'wm ' + (cls || '') }, 'Roster', h('b', null, 'Pulse'));
-const brandFoot = () => h('div', { class: 'bfoot' }, h('img', { src: '/icon.svg', alt: '' }), wordmark(), h('span', null, 'Tryouts and camps'));
+const brandFoot = () => h('div', { class: 'bfoot' }, h('img', { src: '/icon.svg', alt: '' }), wordmark(), h('a', { href: '/about', class: 'aboutlink' }, 'About RosterPulse'));
 const fmtDate = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 
@@ -73,7 +74,7 @@ function viewHome() {
         h('button', { class: 'item', onclick: () => { location.href = '/about'; } }, icon('target'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'About RosterPulse'), h('div', { class: 'pmeta' }, 'The page to show other coaches')), icon('chev')),
         S.settings.tips && Object.keys(S.settings.tips).length ? h('button', { class: 'item', onclick: () => { S.settings.tips = {}; save(); toast('Tips will show again.'); render(); } }, icon('bell'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Show tips again')), icon('chev')) : null,
         h('button', { class: 'item', onclick: checkForUpdate }, icon('history'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Check for updates'), h('div', { class: 'pmeta' }, 'Version ' + APP.build)), icon('chev'))),
-      brandFoot(), h('p', { class: 'faint tiny center' }, APP.label))];
+      h('p', { class: 'faint tiny center', style: 'margin-top:24px' }, APP.label))];
 }
 
 function newEventSheet() {

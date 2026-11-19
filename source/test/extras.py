@@ -55,7 +55,13 @@ def run(p, name, vp, mobile):
     pg.locator('.prow2', has_text='Olivia J').click(); pg.wait_for_selector('.srow')
     assert 'Next: #18' not in pg.inner_text('main'), 'Next skips the no-show'
     pg.click('button[aria-label="Back"]'); pg.click('button[aria-label="Back"]'); pg.wait_for_selector('text=Start scoring')
-    pg.evaluate("location.hash = '#/'"); pg.wait_for_selector('text=New event')
+    pg.locator('button[aria-label="Home"]').click(); pg.wait_for_selector('text=New event')
+    assert pg.locator('button[aria-label="Home"]').count() == 0, 'no Home button on Home'
+    pg.locator('.prow2, .evcard', has_text='Demo').first.click(); pg.wait_for_selector('.seg')
+    pg.locator('.seg button', has_text='Results').click(); pg.wait_for_selector('.rrow'); pg.locator('.rrow').first.click(); pg.wait_for_selector('text=How they were scored')
+    shot('4b-card-home-button')
+    pg.locator('button[aria-label="Home"]').click(); pg.wait_for_selector('text=New event')
+    assert pg.locator('.bfoot a', has_text='About RosterPulse').count() == 1, 'about link on home'
 
     # help, privacy in the app
     pg.locator('.item', has_text='Help').click(); pg.wait_for_selector('details.faq')
@@ -70,7 +76,7 @@ def run(p, name, vp, mobile):
     pg.locator('.item', has_text='Show tips again').click(); time.sleep(0.2); assert pg.locator('.tip').count() == 1, 'tips back'
 
     # pages
-    pg.goto(URL + 'about'); pg.wait_for_selector('h1'); assert 'every coach' in pg.inner_text('h1')
+    pg.locator('.bfoot a', has_text='About RosterPulse').click(); pg.wait_for_selector('h1'); assert '/about' in pg.url and 'every coach' in pg.inner_text('h1')
     assert pg.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1'), 'about page fits the screen'
     shot('7-about')
     pg.goto(URL + 'privacy'); pg.wait_for_selector('h1'); assert 'Privacy' in pg.inner_text('h1')
