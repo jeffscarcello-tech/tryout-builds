@@ -73,6 +73,37 @@ function computeResults(ev, day) {
 }
 
 /* every note for a player: roster note, overall notes and skill notes, newest first */
+/* the coaches' notes on one skill for one player (newest first) */
+function skillNotes(ev, pid, kid, dayIds) {
+  const out = [];
+  for (const key in ev.notes || {}) {
+    const [by, p2, k2, sid] = key.split('|'), r = ev.notes[key];
+    if (p2 === pid && k2 === kid && r && r.v && (!dayIds || dayIds.includes(sid))) out.push({ by, sid, text: r.v, t: r.t || 0 });
+  }
+  return out.sort((a, b) => b.t - a.t);
+}
+/* tap a skill on the player card: every coach's score (by day) and their notes on it */
+function skillDetailSheet(ev, p, k, dayIds) {
+  const f = ev.form, fv = v => v == null ? '–' : f.scale === 'pcm' ? pcmLabel(v) : fmtV(v);
+  const vb = valuesBy(ev, p.id, k.id, dayIds), notes = skillNotes(ev, p.id, k.id, dayIds);
+  const rule = dayIds.length > 1 ? (f.combine || 'avg') : 'avg', days = ev.sessions.filter(d => dayIds.includes(d.id));
+  const who = [...new Set(Object.keys(vb).concat(notes.map(n => n.by)))];
+  const comb = by => vb[by] ? combineDays(vb[by], rule) : null;
+  who.sort((a, b) => (comb(b) == null ? -1 : comb(b)) - (comb(a) == null ? -1 : comb(a)) || evalName(ev, a).localeCompare(evalName(ev, b)));
+  const vals = who.map(comb).filter(v => v != null), avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  openSheet((s, api) => s.append(
+    h('h2', null, k.name), h('div', { class: 'pmeta', style: 'margin:-6px 0 12px' }, '#' + (p.num || '–') + ' ' + (p.name || '') + ' · ' + (avg == null ? 'not scored' : 'average ' + fv(avg) + (f.scale === 'pcm' ? '' : ' of ' + scaleHi(f)) + ' from ' + plural(vals.length, 'coach', 'coaches'))),
+    who.length ? h('div', { class: 'list', style: 'gap:8px' }, who.map(by => {
+      const arr = vb[by] || [], mine = notes.filter(n => n.by === by), c = comb(by), g = c != null && Number.isInteger(c) ? guideText(f, k, c) : '';
+      return h('div', { class: 'cdrow' },
+        h('div', { class: 'row' }, h('div', { class: 'grow' }, h('div', { class: 'pnm' }, evalName(ev, by)),
+            days.length > 1 ? h('div', { class: 'pmeta' }, days.map((d, i) => d.name + ': ' + fv(arr[i])).join(' · ')) : null,
+            g ? h('div', { class: 'pmeta' }, g) : null),
+          h('b', { class: 'cdv' }, fv(c))),
+        mine.map(n => h('div', { class: 'cdnote' }, icon('note', 14), h('div', null, n.text, days.length > 1 ? h('span', { class: 'pmeta' }, ' · ' + ((ev.sessions.find(d => d.id === n.sid) || {}).name || '')) : null))));
+    })) : h('p', { class: 'note' }, 'No coach has scored ' + k.name.toLowerCase() + ' for this ' + W.player + ' yet.'),
+    h('div', { class: 'acts' }, h('button', { class: 'btn primary', onclick: () => api.close() }, 'Done'))));
+}
 function notesFor(ev, pid) {
   const out = [], names = Object.fromEntries(allSkills(ev).concat(ev.form.tests).map(k => [k.id, k.name]));
   const p = ev.players.find(x => x.id === pid);
@@ -224,11 +255,13 @@ function viewPlayerCard(evId, pid) {
         h('div', { class: 'knm' }, h('div', { class: 'pnm' }, x.who + (x.day ? ' · ' + x.day : '')), h('div', { class: 'pmeta' }, x.done + ' of ' + x.all + ' scored' + (x.notes ? ' · ' + plural(x.notes, 'note', 'notes') : '') + (x.when ? ' · ' + x.when : ''))),
         h('b', { class: 'num', style: 'font-size:18px' }, x.avg == null ? '–' : (f.scale === 'pcm' ? pcmLabel(x.avg) : fmtV(x.avg)) + (f.scale === 'pcm' ? '' : ' avg'))))) : h('p', { class: 'note' }, 'Nobody has scored this ' + W.player + ' yet.'),
       sect('Skills'),
+      h('p', { class: 'note', style: 'margin:-4px 0 8px' }, 'Tap a skill to see each coach\'s score and notes.'),
       h('div', { class: 'stack', style: 'gap:8px' }, ks.map(k => {
-        const s = r.skills[k.id];
-        return h('div', { class: 'bar-row' + (strong.includes(k.id) ? ' strong' : weak.includes(k.id) ? ' weak' : '') },
-          h('div', { class: 'row' }, h('div', { class: 'grow sname' }, k.name, k.w !== 1 ? h('span', { class: 'pmeta' }, ' ' + wLabel(k.w)) : null, strong.includes(k.id) ? h('span', { class: 'tag' }, 'Strength') : weak.includes(k.id) ? h('span', { class: 'tag' }, 'Work on') : null),
-            h('b', { class: 'num' }, s ? (f.scale === 'pcm' ? pcmLabel(s.v) : fmtV(s.v)) : '–')),
+        const s = r.skills[k.id], nn = skillNotes(ev, p.id, k.id, res.dayIds).length;
+        return h('button', { class: 'bar-row tapable' + (strong.includes(k.id) ? ' strong' : weak.includes(k.id) ? ' weak' : ''), 'aria-label': k.name + ': each coach\'s score' + (nn ? ' and ' + plural(nn, 'note', 'notes') : ''), onclick: () => skillDetailSheet(ev, p, k, res.dayIds) },
+          h('div', { class: 'row' }, h('div', { class: 'grow sname' }, k.name, k.w !== 1 ? h('span', { class: 'pmeta' }, ' ' + wLabel(k.w)) : null, strong.includes(k.id) ? h('span', { class: 'tag' }, 'Strength') : weak.includes(k.id) ? h('span', { class: 'tag' }, 'Work on') : null,
+              nn ? h('span', { class: 'nmark', title: plural(nn, 'coach note', 'coach notes') }, icon('note', 13), nn > 1 ? String(nn) : null) : null),
+            h('b', { class: 'num' }, s ? (f.scale === 'pcm' ? pcmLabel(s.v) : fmtV(s.v)) : '–'), icon('chev', 16)),
           h('div', { class: 'bar' }, h('i', { style: 'width:' + (s ? Math.max(3, Math.min(100, s.pct)) : 0) + '%' })),
           s && s.days ? h('div', { class: 'pmeta' }, ev.sessions.filter(d => res.dayIds.includes(d.id)).map((d, j) => d.name + ': ' + (s.days[j] == null ? '–' : f.scale === 'pcm' ? pcmLabel(s.days[j]) : fmtV(s.days[j]))).join(' · ')) : null,
           s && s.n > 1 ? h('div', { class: 'pmeta' }, plural(s.n, 'evaluator', 'evaluators') + (s.spread ? ' · spread ' + fmtV(s.spread) : '')) : null);

@@ -66,7 +66,15 @@ def run(p, name, vp, mobile):
     pg.evaluate("window.__rp.S.events.find(e => e.demo).sport = 'volleyball'; window.__rp.render()"); time.sleep(0.2)
     pg.locator('.drow-top').first.click(); pg.wait_for_selector('text=How they were scored')
     assert pg.locator('.dchip.on', has_text='Advanced').count() == 1, 'decision on the player card'
-    pg.click('button[aria-label="Back"]'); pg.wait_for_selector('.drow'); pg.click('button[aria-label="Back"]'); pg.wait_for_selector('.rrow')
+    # each coach's score and notes on a skill
+    pg.goto(URL + '#/r/' + pg.evaluate("window.__rp.S.events.find(e => e.demo).id") + '/' + pg.evaluate("window.__rp.S.events.find(e => e.demo).players[0].id")); pg.wait_for_selector('text=How they were scored')
+    setting = pg.locator('button.bar-row', has_text='Setting'); assert setting.locator('.nmark').count() == 1, 'note mark on a skill with a coach note'
+    assert pg.locator('button.bar-row', has_text='Serving').locator('.nmark').count() == 0
+    setting.click(); pg.wait_for_selector('.cdrow')
+    t = sheet().inner_text(); assert 'Coach Ana' in t and 'Coach Ben' in t and 'Coach Cam' in t and 'Quick hands' in t, t
+    assert sheet().locator('.cdnote').count() == 1; shot('2c-skill-detail')
+    sheet().locator('button', has_text='Done').click(); time.sleep(0.2)
+    pg.goto(URL + '#/e/' + pg.evaluate("window.__rp.S.events.find(e => e.demo).id") + '/results'); pg.wait_for_selector('.rrow')
     assert pg.locator('.rrow .dbadge').count() >= 10, 'decision badges in results'
     shot('3-results-badges')
 

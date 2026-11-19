@@ -9,7 +9,7 @@ const ctx = { console, JSON, Date, Math, Map, Set, String, Object, Array, parseI
   localStorage: { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } },
   window: { addEventListener() { } }, document: { addEventListener() { }, querySelectorAll: () => [], hidden: false }, navigator: { onLine: false }, toast() { } };
 vm.createContext(ctx);
-vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind, computeResults, notesFor, convertScale, hasSkillScores, scaleMax, skillApplies, skillChoices, scaleLo, scaleHi, useSlider, scaleLabel, makePdf, pdfText, wrapText, mergeRecs, queued, waitingCount, payloadOf, myId, isShared, checkinFor, setHere, checkMapOf, myGroups, groupPlayers, canCheckIn, makeDemo, computeResults, ensureChecks, mergeOrgCopy, orgPayloadOf, authOf, decisionsOf, setDecision, outcomesOf, decisionsCsv, decisionsReport, guideText, sampleGuides, gkey, hasGuide, applyOrgCopy };', ctx);
+vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind, computeResults, notesFor, convertScale, hasSkillScores, scaleMax, skillApplies, skillChoices, scaleLo, scaleHi, useSlider, scaleLabel, makePdf, pdfText, wrapText, mergeRecs, queued, waitingCount, payloadOf, myId, isShared, checkinFor, setHere, checkMapOf, myGroups, groupPlayers, canCheckIn, makeDemo, computeResults, ensureChecks, mergeOrgCopy, orgPayloadOf, authOf, decisionsOf, setDecision, outcomesOf, decisionsCsv, decisionsReport, guideText, sampleGuides, gkey, hasGuide, applyOrgCopy, skillNotes };', ctx);
 const T = ctx.__t;
 let n = 0; const ok = m => { n++; console.log('ok', n, m); };
 
@@ -167,6 +167,9 @@ assert.ok(T.wrapText('word '.repeat(60), 10, 200).length > 3); ok('long text wra
   const before = T.S.events.length, D = T.makeDemo(); assert.equal(T.S.events.length, before + 1); assert.ok(D.demo);
   const R = T.computeResults(D, 'all'); assert.equal(R.rows.filter(r => r.pct != null).length, 15); assert.ok(R.rows.some(r => r.nEval === 3)); assert.ok(Object.keys(D.evaluators).length === 3);
   assert.ok(!T.checkinFor(D, D.sessions[0].id).isHere(D.players[15])); ok('demo event: 16 players, 15 scored by up to 3 coaches, one not checked in');
+  const ava = D.players[0], setting = D.form.skills.find(k => k.name === 'Setting');
+  const sn = T.skillNotes(D, ava.id, setting.id, [D.sessions[0].id]); assert.equal(sn.length, 1); assert.equal(sn[0].by, 'demoana'); assert.ok(sn[0].text.includes('Quick hands'));
+  assert.equal(T.skillNotes(D, ava.id, D.form.skills.find(k => k.name === 'Serving').id).length, 0); ok('notes on one skill for one player');
   T.S.events = T.S.events.filter(x => x !== D);
 }
 // several organizers, decisions, guides

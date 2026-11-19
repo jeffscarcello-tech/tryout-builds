@@ -235,3 +235,13 @@ button.krow{width:100%;text-align:left;font:inherit;color:var(--text);cursor:poi
 .spcard .sph{font-weight:800;margin-bottom:4px}.spcard .sph b{color:#fff}.spcard .sph b span{color:#3b8bff}
 .spcard .btn{display:inline-flex;text-decoration:none}
 a.item{text-decoration:none;color:inherit}
+/* ---------- skill detail on the player card ---------- */
+button.bar-row.tapable{width:100%;text-align:left;font:inherit;color:var(--text);cursor:pointer}
+button.bar-row.tapable:active{border-color:var(--accent)}
+.bar-row .row svg{flex:none;color:var(--muted)}
+.nmark{display:inline-flex;align-items:center;gap:3px;margin-left:8px;padding:1px 7px;border-radius:999px;background:rgba(255,138,31,.15);color:var(--accent);font-size:11px;font-weight:800;vertical-align:middle}
+.nmark svg{color:var(--accent)!important}
+.cdrow{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.cdrow .cdv{font-size:22px;font-weight:900;min-width:40px;text-align:right}
+.cdnote{display:flex;gap:8px;align-items:flex-start;margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--bg2);line-height:1.4}
+.cdnote svg{flex:none;color:var(--accent);margin-top:2px}
