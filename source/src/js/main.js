@@ -71,7 +71,7 @@ function render() {
   window.addEventListener('online', conn); window.addEventListener('offline', conn);
   registerSW();
   const jm = location.pathname.match(/^\/j\/([A-Za-z0-9]{6}|[A-Za-z0-9]{8})\/?$/);
-  if (jm) { history.replaceState(null, '', '/' + location.hash); setTimeout(() => joinSheet(jm[1].toUpperCase()), 150); }
+  if (jm) { const n0 = (new URLSearchParams(location.search).get('n') || '').slice(0, 30); history.replaceState(null, '', '/' + location.hash); setTimeout(() => joinSheet(jm[1].toUpperCase(), n0), 150); }
   applyTheme();
   setTimeout(syncTick, 800);
   window.__rp = { S, SPORTS, parseRoster, formFromSport, newEvent, render, syncEvent, SYNC };   // for tests

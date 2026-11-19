@@ -130,6 +130,7 @@ function eventMenu(ev) {
     const row = (ic, label, fn, danger) => h('button', { class: 'item' + (danger ? ' danger' : ''), style: danger ? 'color:var(--bad)' : null, onclick: () => { api.close(); fn(); } }, icon(ic), h('div', { class: 'pnm grow' }, label));
     s.append(h('h2', null, ev.name), h('div', { class: 'list' },
       row('qr', ev.share ? 'Evaluators, organizers and codes' : 'Share with evaluators and organizers', () => shareSheet(ev)),
+      !ev.share || isOwner(ev) ? row('phone', 'Open on my phone', () => openOnPhone(ev)) : null,
       row('target', 'Team decisions', () => go('x', ev.id)),
       row('copy', 'Copy this event', () => copyEventSheet(ev)),
       ev.locked ? row('history', 'Unlock scoring', () => finishEvent(ev, false)) : row('check', 'Finish event (lock scoring)', () => finishEvent(ev, true)),

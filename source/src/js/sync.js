@@ -166,6 +166,23 @@ function syncPill(ev) {
 
 /* ---------------- organizer: share ---------------- */
 const joinLink = code => location.origin + '/j/' + code;
+async function startShare(ev) {
+  if (me().name) ev.orgNames = Object.assign({}, ev.orgNames, { [me().id]: me().name });
+  const j = await api('/api/ev/share', { eid: ev.id, data: payloadOf(ev), odata: orgPayloadOf(ev), rev: Date.now() });
+  ev.share = { code: j.code, key: j.key, since: 0, sent: JSON.stringify(payloadOf(ev)), rev: j.rev, osent: JSON.stringify(orgPayloadOf(ev)), orev: j.rev };
+  for (const o of boxes(ev)) for (const k in o) if (o[k] && k.split('|')[0] === myId(ev)) o[k].q = 1;   // your own scores and check-ins go up too
+  save(true); syncSoon(ev);
+}
+/* Open on my phone (t23): the same event on your own phone, kept in step. It is an organizer invite with plainer words. */
+async function openOnPhone(ev) {
+  if (ev.share && !isOwner(ev)) { toast('Only the phone or computer that started sharing can do this.'); return; }
+  if (!navigator.onLine) { toast('This needs a signal. Try again when online.'); return; }
+  if (!ev.share) {
+    try { await startShare(ev); render(); }
+    catch (err) { toast(err.code === 'already_shared' ? 'This event is already shared from another phone.' : err.message); return; }
+  }
+  orgInviteSheet(ev, true);
+}
 function shareSheet(ev) {
   openSheet((s, api_) => {
     const paint = () => {
@@ -178,13 +195,8 @@ function shareSheet(ev) {
           h('div', { class: 'acts' }, h('button', { class: 'btn', onclick: () => api_.close() }, 'Not now'), h('button', { class: 'btn primary', onclick: async e => {
             if (!navigator.onLine) { toast('Sharing needs a signal. Try again when online.'); return; }
             e.target.disabled = true; e.target.textContent = 'Starting…';
-            try {
-              if (me().name) ev.orgNames = Object.assign({}, ev.orgNames, { [me().id]: me().name });
-              const j = await api('/api/ev/share', { eid: ev.id, data: payloadOf(ev), odata: orgPayloadOf(ev), rev: Date.now() });
-              ev.share = { code: j.code, key: j.key, since: 0, sent: JSON.stringify(payloadOf(ev)), rev: j.rev, osent: JSON.stringify(orgPayloadOf(ev)), orev: j.rev };
-              for (const o of boxes(ev)) for (const k in o) if (o[k] && k.split('|')[0] === myId(ev)) o[k].q = 1;   // your own scores and check-ins go up too
-              save(true); paint(); syncSoon(ev);
-            } catch (err) { e.target.disabled = false; e.target.textContent = 'Start sharing'; toast(err.code === 'already_shared' ? 'This event is already shared from another phone.' : err.message); }
+            try { await startShare(ev); paint(); }
+            catch (err) { e.target.disabled = false; e.target.textContent = 'Start sharing'; toast(err.code === 'already_shared' ? 'This event is already shared from another phone.' : err.message); }
           } }, 'Start sharing')));
         return;
       }
@@ -232,9 +244,21 @@ function organizersPart(ev, paint) {
     h('div', { class: 'list', style: 'gap:6px' }, rows),
     isOwner(ev) ? h('button', { class: 'btn block', style: 'margin-top:8px', onclick: () => orgInviteSheet(ev) }, icon('plus'), 'Add an organizer') : null];
 }
-async function orgInviteSheet(ev) {
+async function orgInviteSheet(ev, mine) {
   if (!navigator.onLine) { toast('Adding an organizer needs a signal.'); return; }
   let j; try { j = await api('/api/ev/' + ev.id + '/orginvite', {}, authOf(ev)); } catch (e) { toast(e.message); return; }
+  if (mine) {   // Open on my phone
+    const link = joinLink(j.code) + (me().name ? '?n=' + encodeURIComponent(me().name) : ''), qr = h('div', { class: 'qrbox' }); qr.innerHTML = QR.svg(link, { margin: 2 });
+    openSheet((s, api_) => s.append(h('h2', null, 'Open on your phone'),
+      h('p', { class: 'note center' }, 'Point your phone camera at this code and tap the link.'), qr,
+      h('p', { class: 'note center', style: 'margin-top:10px' }, 'Using RosterPulse from your Home Screen? Open it there, tap ', h('b', null, 'Join with a code'), ' and type:'),
+      h('div', { class: 'jcode jcode8' }, j.code.split('').map(c => h('b', null, c))),
+      h('p', { class: 'note center' }, 'Your phone gets the whole event (' + W.players + ', groups, form and notes) and changes go both ways. The code works once, for 48 hours.'),
+      h('div', { class: 'toprow', style: 'margin-top:10px' },
+        h('button', { class: 'btn', onclick: async () => { try { if (navigator.share) await navigator.share({ title: ev.name + ' · RosterPulse', text: 'Open ' + ev.name + ' on my phone (code ' + j.code + ')', url: link }); else { await navigator.clipboard.writeText(link); toast('Link copied.'); } } catch (e) { /* cancelled */ } } }, icon('share'), 'Send link'),
+        h('button', { class: 'btn primary', onclick: () => api_.close() }, 'Done'))));
+    return;
+  }
   const link = joinLink(j.code), qr = h('div', { class: 'qrbox' }); qr.innerHTML = QR.svg(link, { margin: 2 });
   openSheet((s, api_) => s.append(h('h2', null, 'Organizer invite'),
     h('div', { class: 'jcode jcode8' }, j.code.split('').map(c => h('b', null, c))), qr,
@@ -262,12 +286,12 @@ function evalSettings(ev, x) {
 const ago = t => { const m = Math.round((Date.now() - (t || 0)) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
 
 /* ---------------- evaluator: join ---------------- */
-function joinSheet(code0) {
+function joinSheet(code0, name0) {
   const had = code0 && S.events.find(x => x.join && x.join.code === code0 && !x.join.gone && !x.join.removed);
   if (had) { go('e', had.id); return; }
   openSheet((s, api_) => {
     const code = h('input', { class: 'inp jinp', value: code0 || '', maxlength: '8', placeholder: 'ABC123', autocapitalize: 'characters', autocomplete: 'off', spellcheck: 'false' });
-    const name = h('input', { class: 'inp', value: me().name || '', maxlength: '30', placeholder: 'For example: Coach Jeff' });
+    const name = h('input', { class: 'inp', value: me().name || name0 || '', maxlength: '30', placeholder: 'For example: Coach Jeff' });
     const go1 = h('button', { class: 'btn primary', onclick: async () => {
       const c = code.value.toUpperCase().replace(/[^A-Z0-9]/g, ''), n = clean(name.value, 30);
       if (c.length !== 6 && c.length !== 8) { toast('The code has 6 letters and numbers (8 for an organizer invite).'); return; }
