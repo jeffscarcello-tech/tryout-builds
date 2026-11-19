@@ -215,7 +215,11 @@ function resultsTab(ev) {
     h('div', { class: 'toprow' },
       h('button', { class: 'btn', onclick: () => saveFile('RosterPulse-' + fileSafe(ev.name) + '-results.csv', resultsCsv(ev), 'text/csv') }, icon('dl'), 'Spreadsheet'),
       h('button', { class: 'btn', onclick: () => go('p', ev.id, 'results') }, icon('file'), 'Save as PDF')),
-    h('p', { class: 'note', style: 'margin-top:8px' }, 'Results are for you only. Ratings are never shown to ' + W.players + ' or parents unless you share them.')
+    h('p', { class: 'note', style: 'margin-top:8px' }, 'Results are for you only. Ratings are never shown to ' + W.players + ' or parents unless you share them.'),
+    sect('Event'),
+    ev.locked ? h('button', { class: 'btn block', onclick: () => finishEvent(ev, false) }, icon('history'), 'Unlock scoring')
+      : h('button', { class: 'btn block finishbtn', onclick: () => finishEvent(ev, true) }, icon('check'), 'Finish event'),
+    h('p', { class: 'note', style: 'margin-top:8px' }, ev.locked ? 'This event is finished. Unlock it to score again.' : 'When the tryout is over, Finish locks scoring and notes on every phone. You can unlock it any time.')
   ];
 }
 const fileSafe = s => String(s || 'event').replace(/[^A-Za-z0-9 _-]/g, '').trim().replace(/\s+/g, '-').slice(0, 40) || 'event';

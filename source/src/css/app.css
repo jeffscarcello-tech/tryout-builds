@@ -281,3 +281,4 @@ button.bar-row.tapable:active{border-color:var(--accent)}
 :root[data-theme=glare] .rpgrid .stick,:root[data-theme=glare] .rpgrid thead th{background:var(--panel2)}
 .rpgrid thead{display:table-header-group}.rpgrid tbody{display:table-row-group}.rpgrid tr{display:table-row}
 .gridwrap table.rpgrid{display:table!important;width:auto}.gridwrap .rpgrid thead{display:table-header-group!important}.gridwrap .rpgrid tbody{display:table-row-group!important}
+.finishbtn{border-color:rgba(80,200,120,.5);color:var(--good)}.finishbtn svg{color:var(--good)}
