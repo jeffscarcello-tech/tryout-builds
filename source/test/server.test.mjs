@@ -12,7 +12,7 @@ function d1() {
     const a = order.length ? order.map(i => args[i]) : args;
     const st = { sql, args,
       bind: (...x) => mk(sql, x),
-      run: async () => { s.prepare(conv(sql)).run(...a); return { success: true }; },
+      run: async () => { const r = s.prepare(conv(sql)).run(...a); return { success: true, meta: { changes: Number(r.changes) } }; },
       first: async () => s.prepare(conv(sql)).get(...a) || null,
       all: async () => ({ results: s.prepare(conv(sql)).all(...a) }) };
     return st;
@@ -32,7 +32,7 @@ let n = 0; const ok = (name) => { n++; console.log('ok', n, name); };
 
 // 1. empty site
 let r = await req('/'); assert.equal(r.status, 200); assert.match(await r.text(), /Almost/); ok('empty site shows the starting page');
-r = await req('/api/health'); let j = await r.json(); assert.equal(j.app, false); assert.equal(j.loader, 'tr-loader-t1'); ok('health before install');
+r = await req('/api/health'); let j = await r.json(); assert.equal(j.app, false); assert.equal(j.loader, 'tr-loader-t2'); ok('health before install');
 r = await req('/nope'); assert.equal(r.status, 404); ok('unknown path 404');
 
 // 2. admin password
@@ -79,4 +79,42 @@ files['test/build.txt'] = 'other-build\n'; assert.equal(await runU(), 'build_nam
 files['test/app.json'] = sp.replace('nov17-v84', 'other-build'); assert.equal(await runU(), 'not_the_tryout_app'); ok('ShotPulse file on GitHub refused');
 files['test/app.json'] = '{broken'; assert.equal(await runU(), 'app_file_damaged'); ok('damaged file refused');
 r = await loader.fetch(new Request('https://x/'), env3); assert.ok((await r.text()).includes(bundle.build)); ok('site still serves the good version after refused updates');
+
+// 6. shared events
+const env4 = { DB: d1() };
+const api = (path, body, headers = {}, ip = '9.9.9.9') => loader.fetch(new Request('https://t.example' + path, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json', 'CF-Connecting-IP': ip }, headers), body: JSON.stringify(body) }), env4).then(async r => ({ status: r.status, j: await r.json() }));
+const evData = { name: 'U15 tryouts', sport: 'volleyball', form: { scale: '5', skills: [{ id: 'k1', name: 'Serving', w: 1 }], tests: [], positions: [], divisions: [] }, groups: [], players: [{ id: 'p1', num: '7', name: 'Jo' }, { id: 'p2', num: '9', name: 'Al' }], sessions: [{ id: 'd1', name: 'Day 1' }] };
+let x = await api('/api/ev/share', { eid: 'e1abcdef', data: evData, rev: 100 }); assert.equal(x.status, 200); assert.match(x.j.code, /^[A-Z2-9]{6}$/); assert.equal(x.j.key.length, 32); ok('organizer shares: code and key');
+const code = x.j.code, KEY = { 'X-Key': x.j.key };
+x = await api('/api/ev/share', { eid: 'e1abcdef', data: evData }); assert.equal(x.status, 409); ok('cannot share the same event twice');
+x = await api('/api/ev/join', { code: 'ZZZZZZ', name: 'A' }); assert.equal(x.status, 404); ok('wrong code refused');
+x = await api('/api/ev/join', { code: code.toLowerCase(), name: '' }); assert.equal(x.status, 400); ok('name needed');
+x = await api('/api/ev/join', { code: code.toLowerCase(), name: 'Coach <b>A</b>' }); assert.equal(x.status, 200); assert.equal(x.j.eid, 'e1abcdef'); assert.equal(x.j.data.players.length, 2); assert.equal(x.j.data.scores, undefined); ok('evaluator joins with the code (any case), gets the roster, no scores');
+const A = { 'X-Eval': x.j.vid + '.' + x.j.tok }, vidA = x.j.vid;
+x = await api('/api/ev/join', { code, name: 'Coach B' }); const B = { 'X-Eval': x.j.vid + '.' + x.j.tok }, vidB = x.j.vid;
+const rec = (id, by, p, v, t, k = 's', sk = 'k1') => ({ id: 'id-' + id, k, by, p, s: sk, d: 'd1', v, t });
+x = await api('/api/ev/e1abcdef/sync', { since: 0, rev: 100, recs: [rec('r1', vidA, 'p1', 4, 1000), rec('r2', vidA, 'p2', 3, 1000), rec('r3', vidB, 'p1', 5, 1000)] }, A);
+assert.equal(x.j.accepted, 2); assert.equal(x.j.recs.length, 2); assert.ok(x.j.recs.every(r => r.by === vidA)); ok('evaluator writes only their own scores (one for B ignored)');
+x = await api('/api/ev/e1abcdef/sync', { since: 0, rev: 100, recs: [rec('r1', vidA, 'p1', 4, 1000)] }, A); assert.equal(x.j.accepted, 0); ok('sending the same score again is ignored (retry is safe)');
+x = await api('/api/ev/e1abcdef/sync', { since: 0, rev: 100, recs: [rec('r4', vidB, 'p1', 2, 2000), rec('n1', vidB, 'p1', 'Great <i>hands</i>', 2000, 'n', '')] }, B);
+assert.equal(x.j.accepted, 2); assert.equal(x.j.recs.length, 2); ok('second evaluator scores and adds a note');
+x = await api('/api/ev/e1abcdef/sync', { since: 0, recs: [rec('r5', 'org1', 'p2', 5, 3000)] }, KEY);
+assert.equal(x.j.recs.length, 5); assert.equal(x.j.evaluators.length, 2); assert.equal(x.j.evaluators[0].name, 'Coach bAb'.replace('bAb', '<b>A</b>').replace(/[<>]/g, '')); ok('organizer gets everyone\'s scores and notes, plus the evaluator list');
+assert.equal(x.j.recs.find(r => r.id === 'id-n1').v, 'Great ihands/i'); assert.equal(typeof x.j.recs.find(r => r.id === 'id-r1').v, 'number'); ok('notes cleaned, scores come back as numbers');
+const seq1 = x.j.seq; x = await api('/api/ev/e1abcdef/sync', { since: seq1, recs: [] }, KEY); assert.equal(x.j.recs.length, 0); ok('nothing new since last sync');
+x = await api('/api/ev/e1abcdef/sync', { since: 0, rev: 100, recs: [] }, B); assert.equal(x.j.data, undefined); ok('evaluator up to date: no roster sent');
+const evData2 = JSON.parse(JSON.stringify(evData)); evData2.players.push({ id: 'p3', num: '11', name: 'New' });
+x = await api('/api/ev/e1abcdef/put', { data: evData2, rev: 200 }, KEY); assert.equal(x.j.rev, 200); ok('organizer updates the roster');
+x = await api('/api/ev/e1abcdef/put', { data: evData2 }, A); assert.equal(x.status, 403); ok('evaluator cannot change the roster');
+x = await api('/api/ev/e1abcdef/sync', { since: 0, rev: 100, recs: [] }, B); assert.equal(x.j.data.players.length, 3); assert.equal(x.j.rev, 200); ok('evaluator receives the new roster');
+x = await api('/api/ev/e1abcdef/sync', { recs: [] }, { 'X-Eval': vidA + '.' + '0'.repeat(32) }); assert.equal(x.status, 403); x = await api('/api/ev/e1abcdef/sync', { recs: [] }, { 'X-Key': 'f'.repeat(32) }); assert.equal(x.status, 403); ok('wrong token or key refused');
+x = await api('/api/ev/e1abcdef/remove', { vid: vidA }, KEY); x = await api('/api/ev/e1abcdef/sync', { recs: [] }, A); assert.equal(x.status, 403);
+x = await api('/api/ev/e1abcdef/sync', { since: 0, recs: [] }, KEY); assert.equal(x.j.recs.filter(r => r.by === vidA).length, 2); ok('removed evaluator cannot send, their scores stay');
+const big = Array.from({ length: 1600 }, (_, i) => rec('b' + i, vidB, 'p2', 3, 5000 + i));
+for (let i = 0; i < big.length; i += 400) await api('/api/ev/e1abcdef/sync', { since: 0, recs: big.slice(i, i + 400) }, B);
+x = await api('/api/ev/e1abcdef/sync', { since: 0, recs: [] }, KEY); assert.equal(x.j.more, true); assert.equal(x.j.recs.length, 1500);
+const x2 = await api('/api/ev/e1abcdef/sync', { since: x.j.seq, recs: [] }, KEY); assert.equal(x.j.recs.length + x2.j.recs.length, 1605); assert.equal(x2.j.more, false); ok('large events come down in pages');
+for (let i = 0; i < 40; i++) await api('/api/ev/join', { code: 'QQQQQQ', name: 'x' }, {}, '6.6.6.6');
+x = await api('/api/ev/join', { code, name: 'x' }, {}, '6.6.6.6'); assert.equal(x.status, 429); ok('code guessing is limited per network');
+x = await api('/api/ev/e1abcdef/stop', {}, KEY); assert.equal(x.status, 200); x = await api('/api/ev/e1abcdef/sync', { recs: [] }, B); assert.equal(x.status, 410); x = await api('/api/ev/join', { code, name: 'Late' }, {}, '7.7.7.7'); assert.equal(x.status, 404); ok('stop sharing: everything removed, evaluators told it is gone');
 console.log('ALL', n, 'SERVER TESTS PASSED');

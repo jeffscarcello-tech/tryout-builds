@@ -1,17 +1,21 @@
 // =====================================================================
 // Tryout app server (Cloudflare Worker). Test site: Worker "tryouttest", D1 database "tryouttest" bound as DB.
 //
+// t2: shared events for several phones. The organizer shares an event (gets a secret organizer key and a 6-letter join code);
+//     evaluators join with the code and their name (no account; each phone gets its own token). Scores and notes are
+//     append-only records with an id made on the phone: a repeat is ignored, the newest per evaluator/player/skill/day wins
+//     on the phones. Evaluators only ever get their own records back; the organizer gets everyone's.
 // t1: stage 0. Serves the app file stored in D1 (installed by the GitHub updater, or uploaded at /admin),
 //     plus the service worker, manifest, icons and a health check. Copied from the ShotPulse loader (v47),
 //     with the game, live, sound, team-sharing and account parts left out. Accounts come in stage 1.
 //
 // Health check: GET /api/health
 // =====================================================================
-const LOADER = 'tr-loader-t1';
+const LOADER = 'tr-loader-t2';
 const APP_KIND = 'tryout';          // only app files built for this app are accepted (a ShotPulse file is refused)
 const ADMIN_SALT = 'tr-admin:';
 
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,PUT,POST,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type,X-Admin', 'Access-Control-Max-Age': '86400' };
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,PUT,POST,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type,X-Admin,X-Key,X-Eval', 'Access-Control-Max-Age': '86400' };
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...CORS } });
 const html = (body, type, extra = {}) => new Response(body, { headers: { 'Content-Type': type, 'X-Content-Type-Options': 'nosniff', ...extra } });
 const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -99,7 +103,7 @@ async function serveApp(request, env, p) {
   if (!env.DB) return new Response('This site needs a D1 database bound to the Worker as DB.', { status: 500 });
   const a = await loadApp(env.DB);
   if (!a) return (p === '/' || p === '/index.html') ? html(EMPTY_HTML, 'text/html; charset=utf-8', { 'Cache-Control': 'no-store' }) : null;
-  if (p === '/' || p === '/index.html' || /^\/e\/[A-Za-z0-9]{4,12}\/?$/.test(p)) {
+  if (p === '/' || p === '/index.html' || /^\/j\/[A-Za-z0-9]{4,12}\/?$/.test(p)) {
     const tag = '"' + a.ver + '"', hd = { 'Cache-Control': 'no-cache', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY', ETag: tag };
     if ((request.headers.get('If-None-Match') || '').includes(tag)) return new Response(null, { status: 304, headers: hd });
     return html(a.html, 'text/html; charset=utf-8', hd);
@@ -114,6 +118,154 @@ async function serveApp(request, env, p) {
   return null;
 }
 
+/* =====================================================================
+   Shared events (several phones)
+   ===================================================================== */
+const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const MAX_EVENT = 600000, MAX_RECS_IN = 400, MAX_RECS_OUT = 1500, MAX_RECS_EVENT = 250000, MAX_EVALS = 60;
+const EID_RE = /^[A-Za-z0-9]{6,40}$/, RID_RE = /^[A-Za-z0-9_-]{4,40}$/, ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
+const rnd = (n, chars) => [...crypto.getRandomValues(new Uint8Array(n))].map(x => chars[x % chars.length]).join('');
+const rndHex = () => [...crypto.getRandomValues(new Uint8Array(16))].map(x => x.toString(16).padStart(2, '0')).join('');
+let evReady = false;
+async function evInit(db) {
+  if (evReady) return;
+  await db.batch([
+    db.prepare('CREATE TABLE IF NOT EXISTS sev (eid TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, key_hash TEXT NOT NULL, data TEXT NOT NULL, rev INTEGER NOT NULL, seq INTEGER NOT NULL DEFAULT 0, nrec INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, touched INTEGER NOT NULL)'),
+    db.prepare('CREATE TABLE IF NOT EXISTS srec (eid TEXT NOT NULL, id TEXT NOT NULL, kind TEXT NOT NULL, by TEXT NOT NULL, pid TEXT NOT NULL, kid TEXT NOT NULL, sid TEXT NOT NULL, v TEXT, t INTEGER NOT NULL, seq INTEGER NOT NULL, PRIMARY KEY (eid, id))'),
+    db.prepare('CREATE INDEX IF NOT EXISTS srec_seq ON srec (eid, seq)'),
+    db.prepare('CREATE TABLE IF NOT EXISTS seval (eid TEXT NOT NULL, vid TEXT NOT NULL, tok_hash TEXT NOT NULL, name TEXT NOT NULL, joined INTEGER NOT NULL, seen INTEGER NOT NULL, PRIMARY KEY (eid, vid))'),
+    db.prepare('CREATE TABLE IF NOT EXISTS srate (k TEXT PRIMARY KEY, n INTEGER NOT NULL, win INTEGER NOT NULL)')
+  ]);
+  evReady = true;
+}
+async function rateOk(db, k, max, win) {
+  const now = Date.now(), r = await db.prepare('SELECT n, win FROM srate WHERE k = ?1').bind(k).first();
+  if (!r || now - r.win > win) { await db.prepare('INSERT OR REPLACE INTO srate (k, n, win) VALUES (?1, 1, ?2)').bind(k, now).run(); return true; }
+  if (r.n >= max) return false;
+  await db.prepare('UPDATE srate SET n = n + 1 WHERE k = ?1').bind(k).run(); return true;
+}
+const cleanTxt = (v, n) => String(v == null ? '' : v).replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, n);
+/* the event as evaluators see it: name, sport, form, groups, players, days (never scores) */
+function eventData(d) {
+  if (!d || typeof d !== 'object') return null;
+  const o = { name: cleanTxt(d.name, 60), sport: cleanTxt(d.sport, 20), form: d.form, groups: Array.isArray(d.groups) ? d.groups : [], players: Array.isArray(d.players) ? d.players : [], sessions: Array.isArray(d.sessions) ? d.sessions : [] };
+  if (!o.form || typeof o.form !== 'object' || o.players.length > 1500) return null;
+  return o;
+}
+/* who is calling: the organizer (X-Key) or an evaluator (X-Eval = vid.token) */
+async function evWho(db, request, eid) {
+  const row = await db.prepare('SELECT key_hash, rev, seq FROM sev WHERE eid = ?1').bind(eid).first();
+  if (!row) return { gone: true };
+  const key = request.headers.get('X-Key') || '';
+  if (key.length >= 32 && sameStr(await sha256('ek:' + key), row.key_hash)) return { role: 'org', row };
+  const m = (request.headers.get('X-Eval') || '').match(/^([A-Za-z0-9]{8,20})\.([a-f0-9]{32})$/);
+  if (m) {
+    const ev = await db.prepare('SELECT tok_hash, name, seen FROM seval WHERE eid = ?1 AND vid = ?2').bind(eid, m[1]).first();
+    if (ev && sameStr(await sha256('et:' + m[2]), ev.tok_hash)) return { role: 'eval', vid: m[1], name: ev.name, seen: ev.seen, row };
+  }
+  return { bad: true };
+}
+async function readBody(request, max) { const t = await request.text(); if (t.length > max) throw Object.assign(new Error('too_big'), { code: 413 }); try { return JSON.parse(t || '{}'); } catch (e) { throw Object.assign(new Error('bad_json'), { code: 400 }); } }
+
+async function handleShared(request, env, p) {
+  const db = env.DB; await evInit(db);
+  if (request.method !== 'POST') return json({ error: 'method' }, 405);
+  const now = Date.now(), ip = (request.headers.get('CF-Connecting-IP') || 'x').slice(0, 60);
+  let body; try { body = await readBody(request, MAX_EVENT + 200000); } catch (e) { return json({ error: e.message }, e.code || 400); }
+
+  /* the organizer starts sharing an event: it gets a join code and a secret organizer key */
+  if (p === '/api/ev/share') {
+    const eid = String(body.eid || ''); if (!EID_RE.test(eid)) return json({ error: 'bad_event' }, 400);
+    const data = eventData(body.data); if (!data) return json({ error: 'bad_event' }, 400);
+    const txt = JSON.stringify(data); if (txt.length > MAX_EVENT) return json({ error: 'too_big' }, 413);
+    if (!(await rateOk(db, 'share:' + ip, 30, 3600000))) return json({ error: 'too_many', hint: 'Too many shared events from this network. Try again later.' }, 429);
+    if (await db.prepare('SELECT eid FROM sev WHERE eid = ?1').bind(eid).first()) return json({ error: 'already_shared' }, 409);
+    const key = rndHex(); let code = '';
+    for (let i = 0; i < 6 && !code; i++) { const c = rnd(6, CODE_CHARS); if (!(await db.prepare('SELECT eid FROM sev WHERE code = ?1').bind(c).first())) code = c; }
+    if (!code) return json({ error: 'busy' }, 503);
+    const rev = Math.floor(+body.rev) || now;
+    await db.prepare('INSERT INTO sev (eid, code, key_hash, data, rev, seq, nrec, created, touched) VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, ?6, ?6)').bind(eid, code, await sha256('ek:' + key), txt, rev, now).run();
+    if (Math.random() < 0.05) tidyShared(db).catch(() => { /* ignore */ });
+    return json({ ok: true, code, key, rev });
+  }
+
+  /* an evaluator joins with the code and a name; the phone gets its own token */
+  if (p === '/api/ev/join') {
+    if (!(await rateOk(db, 'join:' + ip, 40, 3600000))) return json({ error: 'too_many', hint: 'Too many tries. Wait a few minutes.' }, 429);
+    const code = String(body.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const name = cleanTxt(body.name, 30); if (!name) return json({ error: 'name_needed' }, 400);
+    const row = code.length === 6 ? await db.prepare('SELECT eid, data, rev FROM sev WHERE code = ?1').bind(code).first() : null;
+    if (!row) return json({ error: 'bad_code' }, 404);
+    const cnt = await db.prepare('SELECT COUNT(*) AS c FROM seval WHERE eid = ?1').bind(row.eid).first();
+    if (cnt && cnt.c >= MAX_EVALS) return json({ error: 'full' }, 403);
+    const vid = 'v' + rnd(11, CODE_CHARS.toLowerCase() + '0123456789'), tok = rndHex();
+    await db.prepare('INSERT INTO seval (eid, vid, tok_hash, name, joined, seen) VALUES (?1, ?2, ?3, ?4, ?5, ?5)').bind(row.eid, vid, await sha256('et:' + tok), name, now).run();
+    return json({ ok: true, eid: row.eid, vid, tok, rev: row.rev, data: JSON.parse(row.data) });
+  }
+
+  const m = p.match(/^\/api\/ev\/([A-Za-z0-9]{6,40})\/(sync|put|evaluators|remove|stop|leave)$/);
+  if (!m) return json({ error: 'not_found' }, 404);
+  const eid = m[1], act = m[2], who = await evWho(db, request, eid);
+  if (who.gone) return json({ error: 'gone', hint: 'The organizer stopped sharing this event.' }, 410);
+  if (who.bad) return json({ error: 'not_allowed' }, 403);
+
+  if (act === 'leave') { if (who.role !== 'eval') return json({ error: 'not_allowed' }, 403); await db.prepare('DELETE FROM seval WHERE eid = ?1 AND vid = ?2').bind(eid, who.vid).run(); return json({ ok: true }); }
+
+  /* scores and notes in and out */
+  if (act === 'sync') {
+    if (who.role === 'eval' && now - (who.seen || 0) > 60000) await db.prepare('UPDATE seval SET seen = ?1 WHERE eid = ?2 AND vid = ?3').bind(now, eid, who.vid).run();
+    const recs = (Array.isArray(body.recs) ? body.recs : []).slice(0, MAX_RECS_IN), good = [];
+    for (const r of recs) {
+      if (!r || !RID_RE.test(String(r.id)) || (r.k !== 's' && r.k !== 'n')) continue;
+      const by = String(r.by || ''); if (!ID_RE.test(by)) continue;
+      if (who.role === 'eval' && by !== who.vid) continue;   // an evaluator can only write their own scores
+      if (!ID_RE.test(String(r.p)) || !ID_RE.test(String(r.d)) || (r.s !== '' && !ID_RE.test(String(r.s)))) continue;
+      let v = null; if (r.k === 's') { if (r.v != null) { v = Number(r.v); if (!isFinite(v) || Math.abs(v) > 1e7) continue; v = String(v); } } else v = cleanTxt(r.v, 300);
+      good.push({ id: String(r.id), k: r.k, by, p: String(r.p), s: String(r.s || ''), d: String(r.d), v, t: Math.min(Math.floor(+r.t) || now, now + 86400000) });
+    }
+    let accepted = 0;
+    if (good.length) {
+      if (who.row && who.row.nrec + good.length > MAX_RECS_EVENT) return json({ error: 'event_full' }, 413);
+      const up = await db.prepare('UPDATE sev SET seq = seq + ?1, touched = ?2 WHERE eid = ?3 RETURNING seq').bind(good.length, now, eid).first();
+      const base = up.seq - good.length;
+      const res = await db.batch(good.map((r, i) => db.prepare('INSERT OR IGNORE INTO srec (eid, id, kind, by, pid, kid, sid, v, t, seq) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)').bind(eid, r.id, r.k, r.by, r.p, r.s, r.d, r.v, r.t, base + i + 1)));
+      accepted = res.reduce((a, x) => a + ((x.meta && x.meta.changes) || 0), 0);
+      if (accepted) await db.prepare('UPDATE sev SET nrec = nrec + ?1 WHERE eid = ?2').bind(accepted, eid).run();
+    }
+    const since = Math.max(0, Math.floor(+body.since) || 0);
+    const q = who.role === 'org'
+      ? db.prepare('SELECT id, kind, by, pid, kid, sid, v, t, seq FROM srec WHERE eid = ?1 AND seq > ?2 ORDER BY seq LIMIT ?3').bind(eid, since, MAX_RECS_OUT + 1)
+      : db.prepare('SELECT id, kind, by, pid, kid, sid, v, t, seq FROM srec WHERE eid = ?1 AND seq > ?2 AND by = ?4 ORDER BY seq LIMIT ?3').bind(eid, since, MAX_RECS_OUT + 1, who.vid);
+    const rows = (await q.all()).results || [], more = rows.length > MAX_RECS_OUT, out = rows.slice(0, MAX_RECS_OUT);
+    const cur = await db.prepare('SELECT seq, rev, data FROM sev WHERE eid = ?1').bind(eid).first();
+    const reply = { ok: true, accepted, more, seq: out.length ? out[out.length - 1].seq : (more ? since : cur.seq), rev: cur.rev,
+      recs: out.map(x => ({ id: x.id, k: x.kind, by: x.by, p: x.pid, s: x.kid, d: x.sid, v: x.kind === 's' ? (x.v == null ? null : Number(x.v)) : x.v, t: x.t })) };
+    if (who.role === 'eval' && Math.floor(+body.rev || 0) !== cur.rev) reply.data = JSON.parse(cur.data);
+    if (who.role === 'org') reply.evaluators = ((await db.prepare('SELECT vid, name, joined, seen FROM seval WHERE eid = ?1 ORDER BY joined, rowid').bind(eid).all()).results || []);
+    return json(reply);
+  }
+  if (who.role !== 'org') return json({ error: 'organizer_only' }, 403);
+  /* the organizer changed the roster, groups, form or days */
+  if (act === 'put') {
+    const data = eventData(body.data); if (!data) return json({ error: 'bad_event' }, 400);
+    const txt = JSON.stringify(data); if (txt.length > MAX_EVENT) return json({ error: 'too_big' }, 413);
+    const rev = Math.max(Math.floor(+body.rev) || now, who.row.rev + 1);
+    await db.prepare('UPDATE sev SET data = ?1, rev = ?2, touched = ?3 WHERE eid = ?4').bind(txt, rev, now, eid).run();
+    return json({ ok: true, rev });
+  }
+  if (act === 'evaluators') return json({ evaluators: ((await db.prepare('SELECT vid, name, joined, seen FROM seval WHERE eid = ?1 ORDER BY joined, rowid').bind(eid).all()).results || []) });
+  if (act === 'remove') { await db.prepare('DELETE FROM seval WHERE eid = ?1 AND vid = ?2').bind(eid, String(body.vid || '')).run(); return json({ ok: true }); }   // their scores stay; their phone can no longer send
+  if (act === 'stop') { await db.batch([db.prepare('DELETE FROM srec WHERE eid = ?1').bind(eid), db.prepare('DELETE FROM seval WHERE eid = ?1').bind(eid), db.prepare('DELETE FROM sev WHERE eid = ?1').bind(eid)]); return json({ ok: true }); }
+  return json({ error: 'not_found' }, 404);
+}
+/* shared events untouched for 400 days are removed */
+async function tidyShared(db) {
+  const old = Date.now() - 400 * 86400000;
+  const gone = (await db.prepare('SELECT eid FROM sev WHERE touched < ?1 LIMIT 20').bind(old).all()).results || [];
+  for (const g of gone) await db.batch([db.prepare('DELETE FROM srec WHERE eid = ?1').bind(g.eid), db.prepare('DELETE FROM seval WHERE eid = ?1').bind(g.eid), db.prepare('DELETE FROM sev WHERE eid = ?1').bind(g.eid)]);
+  await db.prepare('DELETE FROM srate WHERE win < ?1').bind(Date.now() - 2 * 86400000).run();
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url), p = url.pathname;
@@ -121,6 +273,10 @@ export default {
     if (p === '/api/app/check' || p === '/api/app/part' || p === '/api/app/commit') {
       if (!env.DB) return json({ error: 'needs_d1' }, 501);
       try { return await handleApp(request, env.DB, p); } catch (e) { return json({ error: 'server', detail: String(e && e.message || e).slice(0, 200) }, 500); }
+    }
+    if (p.startsWith('/api/ev/')) {
+      if (!env.DB) return json({ error: 'needs_d1' }, 501);
+      try { return await handleShared(request, env, p); } catch (e) { return json({ error: 'server', detail: String(e && e.message || e).slice(0, 200) }, 500); }
     }
     if (p === '/api/health') {
       let ap = null, gh = null;

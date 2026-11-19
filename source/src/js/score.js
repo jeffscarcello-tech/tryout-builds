@@ -45,6 +45,9 @@ function scoreControl(ev, p, k, sid, label) {
     h('div', { class: 'srange-wrap' }, h('span', null, lo), range, h('span', null, hi)));
 }
 const me = () => { if (!S.settings.me) { S.settings.me = { id: uid('v'), name: '' }; save(); } return S.settings.me; };
+/* who is scoring on this phone for this event: an evaluator who joined by code uses the id the server gave them */
+const myId = ev => ev && ev.join ? ev.join.vid : me().id;
+const myName = ev => ev && ev.join ? ev.join.name : me().name;
 const sKey = (by, pid, kid, sid) => by + '|' + pid + '|' + (kid || '') + '|' + sid;
 
 /* every event has at least one day; scores from before days existed (build t3) move to Day 1 */
@@ -58,7 +61,7 @@ function ensureDays(ev) {
 const dayById = (ev, sid) => ev.sessions.find(d => d.id === sid) || ev.sessions[ev.sessions.length - 1];
 
 function skillsFor(ev, p) { const f = ev.form; return f.alt && p && p.pos === f.alt.pos ? f.alt.skills : f.skills; }
-function getScore(ev, pid, kid, sid, by) { const r = ev.scores && ev.scores[sKey(by || me().id, pid, kid, sid)]; return r && r.v != null ? r.v : null; }
+function getScore(ev, pid, kid, sid, by) { const r = ev.scores && ev.scores[sKey(by || myId(ev), pid, kid, sid)]; return r && r.v != null ? r.v : null; }
 /* the value to show for this day: this day's own score, or (carry forward) the latest earlier day's */
 function shownScore(ev, pid, kid, sid, by) {
   const own = getScore(ev, pid, kid, sid, by); if (own != null) return { v: own, carried: null };
@@ -69,12 +72,13 @@ function shownScore(ev, pid, kid, sid, by) {
 }
 function setScore(ev, pid, kid, sid, v) {
   ev.scores = ev.scores || {};
-  ev.evaluators = ev.evaluators || {}; if (me().name) ev.evaluators[me().id] = me().name;
-  ev.scores[sKey(me().id, pid, kid, sid)] = { id: uid('r'), v: v == null ? null : v, t: Date.now() };
+  ev.evaluators = ev.evaluators || {}; if (myName(ev)) ev.evaluators[myId(ev)] = myName(ev);
+  ev.scores[sKey(myId(ev), pid, kid, sid)] = { id: uid('r'), v: v == null ? null : v, t: Date.now(), q: 1 };   // q: waiting to be sent
+  syncSoon(ev);
   touch(ev);
 }
-function getNote(ev, pid, kid, sid) { const r = ev.notes && ev.notes[sKey(me().id, pid, kid, sid)]; return r ? r.v : ''; }
-function setNote(ev, pid, kid, sid, v) { ev.notes = ev.notes || {}; ev.notes[sKey(me().id, pid, kid, sid)] = { id: uid('r'), v: clean(v, 300), t: Date.now() }; touch(ev); }
+function getNote(ev, pid, kid, sid) { const r = ev.notes && ev.notes[sKey(myId(ev), pid, kid, sid)]; return r ? r.v : ''; }
+function setNote(ev, pid, kid, sid, v) { ev.notes = ev.notes || {}; ev.notes[sKey(myId(ev), pid, kid, sid)] = { id: uid('r'), v: clean(v, 300), t: Date.now(), q: 1 }; touch(ev); syncSoon(ev); }
 /* how many of this player's skills (and tests) this evaluator has filled in on this day (carried scores count) */
 function progressOf(ev, p, sid, by) {
   const ks = skillsFor(ev, p), all = ks.length + ev.form.tests.length;
@@ -92,7 +96,7 @@ async function ensureEvaluatorName() {
 async function startScoring(ev) {
   ensureDays(ev);
   if (!ev.players.length) { toast('Add ' + W.players + ' first.'); return; }
-  if (!(await ensureEvaluatorName())) return;
+  if (!ev.join && !(await ensureEvaluatorName())) return;
   let sid = (S.settings.day || {})[ev.id]; if (!ev.sessions.some(d => d.id === sid)) sid = ev.sessions[ev.sessions.length - 1].id;
   const goTo = gid => { S.settings.day = Object.assign({}, S.settings.day, { [ev.id]: sid }); save(); go('s', ev.id, sid, gid); };
   if (!ev.groups.length && ev.sessions.length === 1) { goTo('all'); return; }
@@ -142,7 +146,7 @@ function viewScoreList(evId, sid, gid) {
   return [topBar((g ? g.name : 'Everyone') + (ev.sessions.length > 1 ? ' · ' + day.name : ''), ['e', ev.id, 'players']),
     h('div', { class: 'subtabs' }, h('div', { class: 'seg' }, [['number', 'By number'], ['name', 'By name'], ['skill', 'By skill']].map(([k, l]) => h('button', { class: by === k ? 'on' : '', onclick: () => { S.settings.pickBy = k; typed = ''; save(); render(); } }, l)))),
     h('main', { class: 'page' },
-      h('div', { class: 'row', style: 'margin:-4px 0 12px' }, h('div', { class: 'pmeta grow' }, 'Scoring as ' + me().name), by === 'skill' ? null : h('span', { class: 'cnt' }, done + ' of ' + list.length + ' done')),
+      h('div', { class: 'row', style: 'margin:-4px 0 12px' }, h('div', { class: 'pmeta grow' }, 'Scoring as ' + myName(ev)), by === 'skill' ? null : h('span', { class: 'cnt' }, done + ' of ' + list.length + ' done')),
       body,
       h('p', { class: 'note', style: 'margin-top:14px' }, 'Scores save on this phone as you tap, with or without signal.'))];
 }

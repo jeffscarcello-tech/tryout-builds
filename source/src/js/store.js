@@ -29,7 +29,7 @@ function newEvent(name, sport, form) {
     groups: [], players: [] };
   S.events.unshift(ev); save(); return ev;
 }
-const touch = ev => { ev.updated = Date.now(); save(); };
+const touch = ev => { ev.updated = Date.now(); save(); if (ev.share && typeof syncSoon === 'function') syncSoon(ev); };
 
 /* clean text the same way everywhere (no markup, sensible length) */
 const clean = (t, n) => String(t == null ? '' : t).replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, n || 60);

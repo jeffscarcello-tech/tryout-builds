@@ -176,7 +176,7 @@ def run(p, name, vp, mobile):
     shot('19-missing')
     pg.click('button[aria-label="Back"]'); pg.wait_for_selector('.rrow')
     # print preview + PDF
-    pg.locator('button', has_text='Print or PDF').click(); pg.wait_for_selector('.paper')
+    pg.locator('button', has_text='Save as PDF').click(); pg.wait_for_selector('.paper')
     assert 'U15 girls tryouts' in pg.inner_text('.paper') and pg.locator('.paper .ptbl tbody tr').count() == 6
     with pg.expect_download() as dl: pg.locator('button', has_text='Save as PDF').click()
     pdfb = open(dl.value.path(), 'rb').read(); assert pdfb[:8] == b'%PDF-1.4' and dl.value.suggested_filename.startswith('RosterPulse-'), dl.value.suggested_filename
@@ -187,7 +187,7 @@ def run(p, name, vp, mobile):
     body = pg.inner_text('main'); assert '#1' in body and 'overall' in body.lower() and 'Quick hands' in body and 'Great hands' in body, body[:400]
     assert pg.locator('.bar-row').count() == 10 and pg.locator('.bar-row.strong').count() == 2 and pg.locator('.bar-row.weak').count() == 2
     shot('14-card')
-    pg.locator('button', has_text='Print or PDF').click(); pg.wait_for_selector('.paper'); assert 'Skills' in pg.inner_text('.paper') and 'Quick hands' in pg.inner_text('.paper')
+    pg.locator('button', has_text='Save as PDF').click(); pg.wait_for_selector('.paper'); assert 'Skills' in pg.inner_text('.paper') and 'Quick hands' in pg.inner_text('.paper')
     with pg.expect_download() as dl: pg.locator('button', has_text='Save as PDF').click()
     open('test/' + name + '-card.pdf', 'wb').write(open(dl.value.path(), 'rb').read())
     pg.click('button[aria-label="Back"]'); pg.wait_for_selector('.rcard')

@@ -63,5 +63,8 @@ function render() {
   const conn = () => document.querySelectorAll('[data-conn]').forEach(el => el.replaceWith(connPill()));
   window.addEventListener('online', conn); window.addEventListener('offline', conn);
   registerSW();
-  window.__rp = { S, SPORTS, parseRoster, formFromSport, newEvent, render };   // for tests
+  const jm = location.pathname.match(/^\/j\/([A-Za-z0-9]{6})\/?$/);
+  if (jm) { history.replaceState(null, '', '/' + location.hash); setTimeout(() => joinSheet(jm[1].toUpperCase()), 150); }
+  setTimeout(syncTick, 800);
+  window.__rp = { S, SPORTS, parseRoster, formFromSport, newEvent, render, syncEvent, SYNC };   // for tests
 })();

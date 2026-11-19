@@ -3,13 +3,13 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert';  // loose deepEqual: arrays made inside the vm have a different prototype
 
-const src = ['sports.js', 'store.js', 'score.js', 'results.js', 'pdf.js'].map(f => readFileSync(new URL('../src/js/' + f, import.meta.url), 'utf8')).join('\n');
+const src = ['sports.js', 'store.js', 'score.js', 'results.js', 'pdf.js', 'sync.js'].map(f => readFileSync(new URL('../src/js/' + f, import.meta.url), 'utf8')).join('\n');
 const mem = {};
 const ctx = { console, JSON, Date, Math, Map, Set, String, Object, Array, parseInt, setTimeout, clearTimeout,
   localStorage: { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } },
-  window: { addEventListener() { } }, document: { addEventListener() { }, hidden: false }, toast() { } };
+  window: { addEventListener() { } }, document: { addEventListener() { }, querySelectorAll: () => [], hidden: false }, navigator: { onLine: false }, toast() { } };
 vm.createContext(ctx);
-vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind, computeResults, notesFor, convertScale, hasSkillScores, scaleMax, skillApplies, skillChoices, scaleLo, scaleHi, useSlider, scaleLabel, makePdf, pdfText, wrapText };', ctx);
+vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind, computeResults, notesFor, convertScale, hasSkillScores, scaleMax, skillApplies, skillChoices, scaleLo, scaleHi, useSlider, scaleLabel, makePdf, pdfText, wrapText, mergeRecs, queued, waitingCount, payloadOf, myId, isShared };', ctx);
 const T = ctx.__t;
 let n = 0; const ok = m => { n++; console.log('ok', n, m); };
 
@@ -130,5 +130,22 @@ const offs = txt.slice(xr).split('\n').slice(3).filter(l => / 00000 n $/.test(l)
 assert.ok(/\/Count [3-9]/.test(txt)); ok('90 rows spill onto more pages');
 assert.equal(T.pdfText('ok ✓ − ⚑'), 'ok ok - (!)'); assert.ok(!/[^\x00-\xff]/.test(txt)); ok('text made safe for the PDF font');
 assert.ok(T.wrapText('word '.repeat(60), 10, 200).length > 3); ok('long text wraps');
+// several phones: queue and merge
+{
+  const E = { id: 'esync1', form: T.formFromSport('volleyball'), players: [{ id: 'p1', num: '1', name: 'A', notes: 'private' }], groups: [], sessions: [{ id: 'd1', name: 'Day 1' }], scores: {}, notes: {}, join: { vid: 'vme', tok: 't', name: 'Me', since: 0 } };
+  const k = E.form.skills[0].id;
+  assert.equal(T.myId(E), 'vme'); T.setScore(E, 'p1', k, 'd1', 4); T.setNote(E, 'p1', '', 'd1', 'good');
+  const q = T.queued(E, 400); assert.equal(q.length, 2); assert.equal(T.waitingCount(E), 2);
+  assert.deepEqual(q.map(r => [r.k, r.by, r.p, r.d]).sort(), [['n', 'vme', 'p1', 'd1'], ['s', 'vme', 'p1', 'd1']]); assert.equal(q.find(r => r.k === 'n').s, ''); ok('scores and notes wait in the queue with the evaluator id');
+  E.scores['other|p1|' + k + '|d1'] = { id: 'zz11', v: 2, t: 1, q: 1 }; assert.equal(T.queued(E, 400).length, 2); ok('only this phone\'s own records are sent');
+  const mine = E.scores['vme|p1|' + k + '|d1'];
+  T.mergeRecs(E, [{ id: 'old1', k: 's', by: 'vme', p: 'p1', s: k, d: 'd1', v: 1, t: mine.t - 5000 }]); assert.equal(E.scores['vme|p1|' + k + '|d1'].v, 4); ok('an older record does not overwrite a newer one');
+  T.mergeRecs(E, [{ id: mine.id, k: 's', by: 'vme', p: 'p1', s: k, d: 'd1', v: 4, t: mine.t }]); assert.ok(!E.scores['vme|p1|' + k + '|d1'].q); ok('the server echo clears the waiting mark');
+  const n = T.mergeRecs(E, [{ id: 'new1', k: 's', by: 'v2', p: 'p1', s: k, d: 'd1', v: 5, t: Date.now() + 1000 }, { id: 'nn1', k: 'n', by: 'v2', p: 'p1', s: '', d: 'd1', v: 'quick', t: 5 }]);
+  assert.equal(n, 2); assert.equal(E.scores['v2|p1|' + k + '|d1'].v, 5); assert.equal(E.notes['v2|p1||d1'].v, 'quick'); ok('other evaluators\' scores and overall notes merge in');
+  T.mergeRecs(E, [{ id: 'aaa1', k: 's', by: 'v3', p: 'p1', s: k, d: 'd1', v: 2, t: 9 }, { id: 'bbb1', k: 's', by: 'v3', p: 'p1', s: k, d: 'd1', v: 3, t: 9 }]); assert.equal(E.scores['v3|p1|' + k + '|d1'].v, 3); ok('same time: the higher id wins on every phone');
+  const P = T.payloadOf(E); assert.equal(P.players[0].notes, undefined); assert.equal(P.players[0].name, 'A'); ok('evaluators never get private player notes');
+  assert.ok(T.isShared(E)); assert.ok(!T.isShared({})); ok('shared or not');
+}
 require_fs: { const fs = await import('node:fs'); fs.writeFileSync('/tmp/rp-test.pdf', pdf); }
 console.log('ALL', n, 'UNIT TESTS PASSED');

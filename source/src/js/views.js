@@ -54,11 +54,12 @@ function viewHome() {
       h('div', { class: 'hero' }, h('h1', { class: 'disp' }, 'Tryouts and camps'),
         h('p', { class: 'muted' }, 'Set up your event, load your roster, and score players by jersey number.')),
       h('button', { class: 'btn primary block big', style: 'margin-top:14px', onclick: newEventSheet }, icon('plus'), 'New event'),
+      h('button', { class: 'btn block', style: 'margin-top:8px', onclick: () => joinSheet() }, icon('link'), 'Join as evaluator'),
       sect('Your events', h('span', { class: 'cnt' }, evs.length || '')),
       evs.length ? h('div', { class: 'list' }, evs.map(ev => {
         const sp = sportById(ev.sport), w = wordsOf(ev);
         return h('button', { class: 'evcard', onclick: () => go('e', ev.id, 'players') },
-          h('div', { class: 'nm ellip' }, ev.name),
+          h('div', { class: 'nm ellip' }, ev.name, ev.join ? h('span', { class: 'ebadge' }, 'Evaluator') : ev.share ? h('span', { class: 'ebadge sh' }, 'Shared') : null),
           h('div', { class: 'sub' }, [sp.name, plural(ev.players.length, w.player, w.players), ev.groups.length ? plural(ev.groups.length, 'group', 'groups') : null, fmtDate(ev.created)].filter(Boolean).join(' · ')));
       })) : h('div', { class: 'empty' }, 'No events yet. Tap New event to set up your first tryout or camp.'),
       sect('More'),
@@ -98,10 +99,11 @@ function newEventSheet() {
 function viewEvent(id, tab) {
   const ev = eventById(id);
   if (!ev) return [topBar('Not found', 'home'), h('main', { class: 'page' }, h('div', { class: 'empty' }, 'That event is not on this phone.'))];
+  if (ev.join) return viewEvalEvent(ev);
   W = wordsOf(ev); tab = ['players', 'groups', 'form', 'results'].includes(tab) ? tab : 'players';
   const sp = sportById(ev.sport);
   const tabs = [['players', cap(W.players)], ['groups', 'Groups'], ['form', 'Form'], ['results', 'Results']];
-  return [topBar(ev.name, 'home', h('button', { class: 'iconbtn', 'aria-label': 'Event options', onclick: () => eventMenu(ev) }, icon('more'))),
+  return [topBar(ev.name, 'home', h('div', { class: 'toprow', style: 'gap:6px;flex-wrap:nowrap' }, ev.share ? syncPill(ev) : null, h('button', { class: 'iconbtn', 'aria-label': 'Event options', onclick: () => eventMenu(ev) }, icon('more')))),
     h('div', { class: 'subtabs' }, h('div', { class: 'seg' }, tabs.map(([k, l]) => h('button', { class: tab === k ? 'on' : '', onclick: () => go('e', ev.id, k) }, l)))),
     h('main', { class: 'page' },
       h('div', { class: 'pmeta', style: 'margin:-4px 0 12px' }, sp.name + ' · created ' + fmtDate(ev.created)),
@@ -112,6 +114,7 @@ function eventMenu(ev) {
   openSheet((s, api) => {
     const row = (ic, label, fn, danger) => h('button', { class: 'item' + (danger ? ' danger' : ''), style: danger ? 'color:var(--bad)' : null, onclick: () => { api.close(); fn(); } }, icon(ic), h('div', { class: 'pnm grow' }, label));
     s.append(h('h2', null, ev.name), h('div', { class: 'list' },
+      row('qr', ev.share ? 'Evaluators and join code' : 'Share with evaluators', () => shareSheet(ev)),
       row('edit', 'Rename event', async () => { const v = await promptBox({ title: 'Event name', value: ev.name, max: 60 }); if (v) { ev.name = v; touch(ev); render(); } }),
       row('copy', 'Copy event (same form and groups, no ' + W.players + ')', () => {
         const c = newEvent(ev.name + ' (copy)', ev.sport, ev.form);
@@ -119,7 +122,8 @@ function eventMenu(ev) {
       }),
       row('clip', 'Save form as my template', () => saveTemplate(ev)),
       row('trash', 'Delete event', async () => {
-        if (!(await confirmBox({ title: 'Delete this event?', message: 'Its ' + W.players + ', groups and form are removed from this phone. This cannot be undone.', ok: 'Delete', danger: true }))) return;
+        if (!(await confirmBox({ title: 'Delete this event?', message: 'Its ' + W.players + ', groups and form are removed from this phone.' + (ev.share ? ' Sharing stops and evaluators can no longer send scores.' : '') + ' This cannot be undone.', ok: 'Delete', danger: true }))) return;
+        if (ev.share) { try { await api('/api/ev/' + ev.id + '/stop', {}, authOf(ev)); } catch (e) { /* deleted here anyway; the server copy expires */ } }
         S.events = S.events.filter(x => x !== ev); save(true); go('home');
       }, true)));
   });
@@ -135,6 +139,7 @@ function playersTab(ev) {
   const unassigned = ev.players.filter(p => !groupsById[p.group]).length;
   return [
     ev.players.length ? h('button', { class: 'btn primary block big', style: 'margin-bottom:12px', onclick: () => startScoring(ev) }, icon('check'), 'Start scoring') : null,
+    ev.players.length ? h('button', { class: 'btn block', style: 'margin-bottom:12px', onclick: () => shareSheet(ev) }, icon('qr'), ev.share ? 'Evaluators · code ' + ev.share.code : 'Share with evaluators') : null,
     h('div', { class: 'toprow' },
       h('button', { class: 'btn' + (ev.players.length ? '' : ' primary'), onclick: () => playerSheet(ev, null) }, icon('plus'), 'Add ' + W.player),
       h('button', { class: 'btn', onclick: () => importSheet(ev) }, icon('file'), 'Import list')),

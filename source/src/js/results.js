@@ -177,7 +177,7 @@ function resultsTab(ev) {
     sect('Share'),
     h('div', { class: 'toprow' },
       h('button', { class: 'btn', onclick: () => saveFile('RosterPulse-' + fileSafe(ev.name) + '-results.csv', resultsCsv(ev), 'text/csv') }, icon('dl'), 'Spreadsheet'),
-      h('button', { class: 'btn', onclick: () => go('p', ev.id, 'results') }, icon('file'), 'Print or PDF')),
+      h('button', { class: 'btn', onclick: () => go('p', ev.id, 'results') }, icon('file'), 'Save as PDF')),
     h('p', { class: 'note', style: 'margin-top:8px' }, 'Results are for you only. Ratings are never shown to ' + W.players + ' or parents unless you share them.')
   ];
 }
@@ -237,7 +237,7 @@ function viewPlayerCard(evId, pid) {
       notes.length ? h('div', { class: 'stack', style: 'gap:6px' }, notes.map(n => h('div', { class: 'nitem' }, h('div', { class: 'pmeta' }, [n.who, n.day, n.skill].filter(Boolean).join(' · ')), h('div', null, n.text)))) : h('p', { class: 'note' }, 'No notes.'),
       h('div', { class: 'toprow', style: 'margin-top:18px' },
         prev ? h('button', { class: 'btn', onclick: () => goReplace('r', ev.id, prev.p.id) }, icon('back'), '#' + (prev.p.num || '–')) : null,
-        h('button', { class: 'btn', onclick: () => go('p', ev.id, 'card', pid) }, icon('file'), 'Print or PDF'),
+        h('button', { class: 'btn', onclick: () => go('p', ev.id, 'card', pid) }, icon('file'), 'Save as PDF'),
         next ? h('button', { class: 'btn', onclick: () => goReplace('r', ev.id, next.p.id) }, '#' + (next.p.num || '–'), icon('chev')) : null))];
 }
 
@@ -311,10 +311,9 @@ function viewPrint(evId, kind, pid) {
   const fname = 'RosterPulse-' + fileSafe(ev.name) + (kind === 'card' ? '-' + fileSafe(rep.title) : '-results') + '.pdf';
   return [topBar('Print or save', kind === 'card' ? ['r', ev.id, pid] : ['e', ev.id, 'results']),
     h('main', { class: 'page' },
-      h('div', { class: 'toprow ptool' },
-        h('button', { class: 'btn primary', onclick: () => { try { window.print(); } catch (e) { toast('This phone cannot print from here. Use Save as PDF.'); } } }, icon('file'), 'Print'),
-        h('button', { class: 'btn', onclick: () => saveFile(fname, makePdf(rep), 'application/pdf') }, icon('dl'), 'Save as PDF')),
-      h('p', { class: 'note ptool', style: 'margin:8px 0 12px' }, 'If Print does nothing (common when the app is opened from the home screen), tap Save as PDF: the share sheet has Print, Save to Files, Mail and more.'),
+      h('button', { class: 'btn primary block big ptool', onclick: () => saveFile(fname, makePdf(rep), 'application/pdf') }, icon('dl'), 'Save as PDF'),
+      h('p', { class: 'note ptool', style: 'margin:8px 0 6px' }, 'Then pick Print, Save to Files, Mail or Messages from your phone\'s share menu.'),
+      h('button', { class: 'btn ghost ptool', style: 'margin-bottom:12px', onclick: () => { try { window.print(); } catch (e) { toast('This phone cannot print from here. Use Save as PDF.'); } } }, icon('file'), 'Print directly (computers)'),
       reportHtml(rep))];
 }
 
@@ -358,14 +357,14 @@ function viewMissing(evId) {
   ensureDays(ev); W = wordsOf(ev);
   if (RS.day !== 'all' && !ev.sessions.some(d => d.id === RS.day)) RS.day = 'all';
   const sid = RS.day === 'all' ? ev.sessions[ev.sessions.length - 1].id : RS.day, day = ev.sessions.find(d => d.id === sid);
-  const evs = evaluatorsOf(ev); if (S.settings.me && S.settings.me.name && !evs.includes(S.settings.me.id)) evs.push(S.settings.me.id);
+  const evs = evaluatorsOf(ev); for (const v of Object.keys(ev.evaluators || {})) if (!evs.includes(v)) evs.push(v); if (S.settings.me && S.settings.me.name && !evs.includes(S.settings.me.id)) evs.push(S.settings.me.id);
   const groups = ev.groups.length ? ev.groups.map(g => [g.id, g.name]).concat(ev.players.some(p => !ev.groups.some(g => g.id === p.group)) ? [['', 'No group']] : []) : [['', null]];
   const inG = gid => sortPlayers(ev.players.filter(p => gid ? p.group === gid : !ev.groups.some(g => g.id === p.group)));
   const nobody = sortPlayers(ev.players.filter(p => !evs.some(by => progressOf(ev, p, sid, by).done)));
   return [topBar('Missing scores', ['e', ev.id, 'results']),
     h('main', { class: 'page' },
       ev.sessions.length > 1 ? h('div', { class: 'seg', style: 'margin-bottom:12px' }, ev.sessions.map(d => h('button', { class: sid === d.id ? 'on' : '', onclick: () => { RS.day = d.id; render(); } }, d.name))) : null,
-      h('p', { class: 'note' }, 'For each evaluator: the ' + W.players + ' they have not fully scored' + (ev.sessions.length > 1 ? ' on ' + day.name : '') + '. Once evaluators score on their own phones (next step), everyone shows here.'),
+      h('p', { class: 'note' }, 'For each evaluator: the ' + W.players + ' they have not fully scored' + (ev.sessions.length > 1 ? ' on ' + day.name : '') + '. Evaluators who joined on their own phones show here as soon as they join.'),
       sect('Not scored by anyone', h('span', { class: 'cnt' }, nobody.length || '')),
       nobody.length ? h('div', { class: 'chips' }, nobody.map(p => h('button', { class: 'chip', onclick: () => go('r', ev.id, p.id) }, '#' + (p.num || '–') + ' ' + (p.name || '').split(' ')[0]))) : h('p', { class: 'note' }, 'Everyone has at least one score.'),
       evs.length ? evs.map(by => {
