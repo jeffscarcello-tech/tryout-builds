@@ -85,7 +85,8 @@ function progressOf(ev, p, sid, by) {
   let done = 0; for (const k of ks.concat(ev.form.tests)) if (shownScore(ev, p.id, k.id, sid, by).v != null) done++;
   return { done, all };
 }
-const groupPlayers = (ev, gid) => sortPlayers(ev.players.filter(p => !gid || gid === 'all' || p.group === gid));
+/* players in a group ('all' = everyone this phone scores: an evaluator given certain groups sees only those) */
+const groupPlayers = (ev, gid) => { const mine = myGroups(ev); return sortPlayers(ev.players.filter(p => !gid || gid === 'all' ? (!mine || mine.includes(p.group)) : p.group === gid)); };
 
 /* ask the evaluator's name once (shown to the organizer next to their scores) */
 async function ensureEvaluatorName() {
@@ -99,15 +100,16 @@ async function startScoring(ev) {
   if (!ev.join && !(await ensureEvaluatorName())) return;
   let sid = (S.settings.day || {})[ev.id]; if (!ev.sessions.some(d => d.id === sid)) sid = ev.sessions[ev.sessions.length - 1].id;
   const goTo = gid => { S.settings.day = Object.assign({}, S.settings.day, { [ev.id]: sid }); save(); go('s', ev.id, sid, gid); };
-  if (!ev.groups.length && ev.sessions.length === 1) { goTo('all'); return; }
+  const mine = myGroups(ev), groups = ev.groups.filter(g => !mine || mine.includes(g.id));
+  if (ev.sessions.length === 1 && (!ev.groups.length || (mine && groups.length === 1))) { goTo(mine && groups.length === 1 ? groups[0].id : 'all'); return; }
   openSheet((s, api) => {
     const dayBox = h('div');
     const paintDays = () => dayBox.replaceChildren(ev.sessions.length > 1 ? field('Day', chipPick(ev.sessions.map(d => [d.id, d.name]), sid, v => { sid = v; }, false)) : null);
     paintDays();
     s.append(h('h2', null, 'Start scoring'), h('div', { class: 'stack' }, dayBox,
-      h('div', { class: 'field' }, h('label', null, ev.groups.length ? 'Which group?' : cap(W.players)), h('div', { class: 'list', style: 'gap:8px' },
-        ev.groups.map(g => h('button', { class: 'item', onclick: () => { api.close(); goTo(g.id); } }, h('div', { class: 'grow' }, h('div', { class: 'pnm' }, g.name), h('div', { class: 'pmeta' }, [g.when, g.where, plural(ev.players.filter(p => p.group === g.id).length, W.player, W.players)].filter(Boolean).join(' · '))), icon('chev'))),
-        h('button', { class: 'item', onclick: () => { api.close(); goTo('all'); } }, h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Everyone'), h('div', { class: 'pmeta' }, plural(ev.players.length, W.player, W.players))), icon('chev'))))));
+      h('div', { class: 'field' }, h('label', null, groups.length ? 'Which group?' : cap(W.players)), h('div', { class: 'list', style: 'gap:8px' },
+        groups.map(g => h('button', { class: 'item', onclick: () => { api.close(); goTo(g.id); } }, h('div', { class: 'grow' }, h('div', { class: 'pnm' }, g.name), h('div', { class: 'pmeta' }, [g.when, g.where, plural(ev.players.filter(p => p.group === g.id).length, W.player, W.players)].filter(Boolean).join(' · '))), icon('chev'))),
+        h('button', { class: 'item', onclick: () => { api.close(); goTo('all'); } }, h('div', { class: 'grow' }, h('div', { class: 'pnm' }, mine ? 'All my groups' : 'Everyone'), h('div', { class: 'pmeta' }, plural(groupPlayers(ev, 'all').length, W.player, W.players))), icon('chev'))))));
   });
 }
 
@@ -118,35 +120,40 @@ function viewScoreList(evId, sid, gid) {
   if (!ev) return [topBar('Not found', 'home'), h('main', { class: 'page' }, h('div', { class: 'empty' }, 'That event is not on this phone.'))];
   ensureDays(ev); W = wordsOf(ev);
   const day = dayById(ev, sid); sid = day.id;
-  const g = ev.groups.find(x => x.id === gid), list = groupPlayers(ev, g ? g.id : 'all');
+  const g = ev.groups.find(x => x.id === gid), all = groupPlayers(ev, g ? g.id : 'all');
+  const ci = checkinFor(ev, sid), list = all.filter(ci.isHere), away = all.filter(p => !ci.isHere(p));
   const by = ['name', 'skill'].includes(S.settings.pickBy) ? S.settings.pickBy : 'number';
   const open = p => { typed = ''; go('s', ev.id, sid, gid, p.id); };
-  const done = list.filter(p => { const pr = progressOf(ev, p, sid); return pr.all && pr.done === pr.all; }).length;
+  const done = list.filter(p => { const pr = progressOf(ev, p, sid); return pr.all && pr.done === pr.all; }).length;   // of those here
   const status = p => { const pr = progressOf(ev, p, sid); return pr.all && pr.done === pr.all ? h('span', { class: 'pbadge full' }, 'Done') : pr.done ? h('span', { class: 'pbadge' }, pr.done + '/' + pr.all) : null; };
   let body;
-  if (by === 'skill') body = scoreBySkill(ev, sid, list);
+  if (by === 'skill') body = scoreBySkill(ev, sid, list, away);
   else if (by === 'number') {
-    const matches = typed ? list.filter(p => p.num === typed) : [];
-    const anyStart = !typed || list.some(p => p.num.startsWith(typed));
+    const matches = typed ? all.filter(p => p.num === typed) : [];
+    const anyStart = !typed || all.some(p => p.num.startsWith(typed));
     body = [
       h('div', { class: 'numshow' + (typed && !anyStart ? ' bad' : '') }, typed ? '#' + typed : 'Type a number'),
       h('div', { class: 'matchbox' }, typed && !anyStart ? h('p', { class: 'note' }, 'No ' + W.player + ' has that number' + (g ? ' in ' + g.name : '') + '.') : null,
-        matches.map(p => h('button', { class: 'prow2', onclick: () => open(p) }, h('span', { class: 'jn' }, p.num), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, p.name || 'No name'), h('div', { class: 'pmeta' }, [p.pos, p.div].filter(Boolean).join(' · ') || ' ')), status(p), icon('chev')))),
+        matches.map(p => h('button', { class: 'prow2', onclick: () => open(p) }, h('span', { class: 'jn' }, p.num), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, p.name || 'No name'), h('div', { class: 'pmeta' }, [p.pos, p.div, ci.isHere(p) ? null : 'not checked in'].filter(Boolean).join(' · ') || ' ')), status(p), icon('chev')))),
       h('div', { class: 'keypad' }, ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map(k => h('button', { class: 'key' + (/\d/.test(k) ? '' : ' fn'), onclick: () => {
         if (k === 'C') typed = ''; else if (k === '⌫') typed = typed.slice(0, -1); else if (typed.length < 3) typed += k;
-        const exact = list.filter(p => p.num === typed), longer = list.some(p => p.num !== typed && p.num.startsWith(typed));
+        const exact = all.filter(p => p.num === typed), longer = all.some(p => p.num !== typed && p.num.startsWith(typed));
         if (exact.length === 1 && !longer) { open(exact[0]); return; }
         render();
       } }, k)))];
   } else {
-    const byName = list.slice().sort((a, b) => (a.name || '~').localeCompare(b.name || '~') || (parseInt(a.num, 10) || 0) - (parseInt(b.num, 10) || 0));
-    body = byName.length ? h('div', { class: 'list', style: 'gap:6px' }, byName.map(p => h('button', { class: 'prow2' + (p.present === false ? ' out' : ''), onclick: () => open(p) },
-      h('span', { class: 'jn' }, p.num || '–'), h('div', { class: 'grow', style: 'min-width:0' }, h('div', { class: 'pnm ellip' }, p.name || 'No name'), h('div', { class: 'pmeta ellip' }, [p.pos, p.div].filter(Boolean).join(' · ') || ' ')), status(p)))) : h('div', { class: 'empty' }, 'No ' + W.players + ' in this group.');
+    const az = l => l.slice().sort((a, b) => (a.name || '~').localeCompare(b.name || '~') || (parseInt(a.num, 10) || 0) - (parseInt(b.num, 10) || 0));
+    const rowOf = p => h('button', { class: 'prow2' + (ci.isHere(p) ? '' : ' out'), onclick: () => open(p) },
+      h('span', { class: 'jn' }, p.num || '–'), h('div', { class: 'grow', style: 'min-width:0' }, h('div', { class: 'pnm ellip' }, p.name || 'No name'), h('div', { class: 'pmeta ellip' }, [p.pos, p.div].filter(Boolean).join(' · ') || ' ')), status(p));
+    body = all.length ? [h('div', { class: 'list', style: 'gap:6px' }, az(list).map(rowOf)),
+      away.length ? [sect('Not checked in', h('span', { class: 'cnt' }, away.length)), h('div', { class: 'list', style: 'gap:6px' }, az(away).map(rowOf))] : null] : h('div', { class: 'empty' }, 'No ' + W.players + ' in this group.');
   }
   return [topBar((g ? g.name : 'Everyone') + (ev.sessions.length > 1 ? ' · ' + day.name : ''), ['e', ev.id, 'players']),
     h('div', { class: 'subtabs' }, h('div', { class: 'seg' }, [['number', 'By number'], ['name', 'By name'], ['skill', 'By skill']].map(([k, l]) => h('button', { class: by === k ? 'on' : '', onclick: () => { S.settings.pickBy = k; typed = ''; save(); render(); } }, l)))),
     h('main', { class: 'page' },
+      tip('scorelist', by === 'number' ? 'Type a jersey number. The ' + W.player + ' opens as soon as the number is unique.' : by === 'name' ? 'Tap a name to score. Done and 4/9 show how far you are.' : 'One skill at a time for every ' + W.player + '. Use the menu or the arrows to change skill.'),
       h('div', { class: 'row', style: 'margin:-4px 0 12px' }, h('div', { class: 'pmeta grow' }, 'Scoring as ' + myName(ev)), by === 'skill' ? null : h('span', { class: 'cnt' }, done + ' of ' + list.length + ' done')),
+      ci.used && away.length && by !== 'name' ? h('p', { class: 'note', style: 'margin:-6px 0 10px' }, away.length + ' not checked in' + (by === 'skill' ? ' (at the bottom)' : '') + '.') : null,
       body,
       h('p', { class: 'note', style: 'margin-top:14px' }, 'Scores save on this phone as you tap, with or without signal.'))];
 }
@@ -172,14 +179,14 @@ function skillChoices(ev) {
 }
 
 /* ---------------- by skill: one skill, every player ---------------- */
-function scoreBySkill(ev, sid, list) {
+function scoreBySkill(ev, sid, list, away) {
   const choices = skillChoices(ev);
   if (!choices.length) return h('div', { class: 'empty' }, 'This form has no skills. Add some in the Form tab.');
   const pick = S.settings.skillPick = S.settings.skillPick || {};
   let ci = choices.findIndex(([k]) => k.id === pick[ev.id]); if (ci < 0) ci = 0;
   const [k, label] = choices[ci];
   const setK = i => { pick[ev.id] = choices[i][0].id; save(); render(); window.scrollTo(0, 0); };
-  const rows = list.filter(p => skillApplies(ev, p, k.id));
+  const rows = list.filter(p => skillApplies(ev, p, k.id)), awayRows = (away || []).filter(p => skillApplies(ev, p, k.id));
   const done = rows.filter(p => shownScore(ev, p.id, k.id, sid).v != null).length;
   const row = p => {
     const cur = shownScore(ev, p.id, k.id, sid), n = getNote(ev, p.id, k.id, sid);
@@ -190,7 +197,7 @@ function scoreBySkill(ev, sid, list) {
     } else {
       ctl = scoreControl(ev, p, k, sid, (p.num ? '#' + p.num + ' ' : '') + k.name);
     }
-    return h('div', { class: 'srow skrow' + (p.present === false ? ' out' : '') },
+    return h('div', { class: 'srow skrow' + (awayRows.includes(p) ? ' out' : '') },
       h('div', { class: 'shead' }, h('span', { class: 'jn' }, p.num || '–'), h('div', { class: 'grow', style: 'min-width:0' }, h('div', { class: 'pnm ellip' }, p.name || 'No name'), p.pos ? h('div', { class: 'pmeta' }, p.pos) : null),
         cur.carried ? h('span', { class: 'carry' }, 'from ' + cur.carried.name) : null, skillNoteBtn(ev, p, k, sid)),
       n ? h('div', { class: 'snote' }, n) : null, ctl);
@@ -202,6 +209,7 @@ function scoreBySkill(ev, sid, list) {
       h('button', { class: 'mini', 'aria-label': 'Next skill', disabled: ci === choices.length - 1, onclick: () => setK(ci + 1) }, icon('chev'))),
     h('div', { class: 'row', style: 'margin:8px 0 10px' }, h('span', { class: 'pmeta grow' }, k.test ? (k.better === 'low' ? 'Lower is better' : 'Higher is better') : 'Every tap is a ' + k.name.toLowerCase() + ' score'), h('span', { class: 'cnt' }, done + ' of ' + rows.length)),
     rows.length ? h('div', { class: 'stack', style: 'gap:8px' }, rows.map(row)) : h('div', { class: 'empty' }, 'No ' + W.players + ' here use this skill.'),
+    awayRows.length ? [sect('Not checked in', h('span', { class: 'cnt' }, awayRows.length)), h('div', { class: 'stack', style: 'gap:8px' }, awayRows.map(row))] : null,
     ci < choices.length - 1 ? h('button', { class: 'btn primary block', style: 'margin-top:14px', onclick: () => setK(ci + 1) }, 'Next skill: ' + choices[ci + 1][1], icon('chev')) : h('p', { class: 'note center', style: 'margin-top:14px' }, 'That is the last skill.')];
 }
 
@@ -212,8 +220,8 @@ function viewScorePlayer(evId, sid, gid, pid) {
   ensureDays(ev); W = wordsOf(ev);
   const day = dayById(ev, sid); sid = day.id;
   const ks = skillsFor(ev, p), pr = progressOf(ev, p, sid);
-  const list = groupPlayers(ev, gid), i = list.findIndex(x => x.id === p.id);
-  const nextUnscored = list.slice(i + 1).concat(list.slice(0, i)).find(x => { const q = progressOf(ev, x, sid); return q.done < q.all; });
+  const ci = checkinFor(ev, sid), list = groupPlayers(ev, gid), i = list.findIndex(x => x.id === p.id);
+  const nextUnscored = list.slice(i + 1).concat(list.slice(0, i)).find(x => { const q = progressOf(ev, x, sid); return q.done < q.all && ci.isHere(x); });
   const noteBtn = k => skillNoteBtn(ev, p, k, sid);
   const row = k => {
     const cur = shownScore(ev, p.id, k.id, sid), n = getNote(ev, p.id, k.id, sid);
@@ -234,7 +242,8 @@ function viewScorePlayer(evId, sid, gid, pid) {
   notes.value = getNote(ev, p.id, '', sid); notes.addEventListener('change', () => setNote(ev, p.id, '', sid, notes.value));
   return [topBar('#' + (p.num || '–') + ' ' + (p.name || ''), ['s', ev.id, sid, gid], h('span', { class: 'cnt', style: 'margin:0' }, pr.done + '/' + pr.all)),
     h('main', { class: 'page' },
-      h('div', { class: 'pmeta', style: 'margin:-4px 0 10px' }, [p.pos, p.div, ev.sessions.length > 1 ? day.name : null, p.present === false ? 'not checked in' : null].filter(Boolean).join(' · ') || ' '),
+      h('div', { class: 'pmeta', style: 'margin:-4px 0 10px' }, [p.pos, p.div, ev.sessions.length > 1 ? day.name : null, ci.isHere(p) ? null : 'not checked in'].filter(Boolean).join(' · ') || ' '),
+      tip('scoreplayer', 'Tap a score. Tap it again to clear it. The small + beside a skill adds a note. Next goes to the next ' + W.player + ' not fully scored.'),
       ev.form.combine === 'carry' && ev.sessions.length > 1 && ev.sessions[0].id !== sid ? h('p', { class: 'note', style: 'margin-bottom:10px' }, 'Faded scores are carried from an earlier day. Tap a score to change it for ' + day.name + '.') : null,
       ks.length ? h('div', { class: 'stack' }, ks.map(row)) : h('div', { class: 'empty' }, 'This form has no skills. Add some in the Form tab.'),
       ev.form.tests.length ? [sect('Measured tests'), h('div', { class: 'stack' }, ev.form.tests.map(testRow))] : null,

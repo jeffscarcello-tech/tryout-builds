@@ -27,7 +27,7 @@ with sync_playwright() as p:
     phone = dict(viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True, device_scale_factor=2)
     pages, errs = {}, []
     for name, opts in (('org', dict(viewport={'width': 1280, 'height': 900})), ('e1', phone), ('e2', phone)):
-        ctx = b.new_context(**opts); pg = ctx.new_page(); pages[name] = (ctx, pg)
+        ctx = b.new_context(**opts); ctx.add_init_script("localStorage.setItem('rp.notips','1')"); pg = ctx.new_page(); pages[name] = (ctx, pg)
         pg.on('pageerror', lambda e, n=name: errs.append(n + ': ' + str(e)))
         pg.on('console', lambda m, n=name: errs.append(n + ': ' + m.text) if m.type == 'error' and 'Failed to load resource' not in m.text else None)
     (octx, org), (c1, e1), (c2, e2) = pages['org'], pages['e1'], pages['e2']
@@ -98,8 +98,28 @@ with sync_playwright() as p:
     sheet(org).locator('button', has_text='Save').last.click(); org.wait_for_selector('text=New K')
     wait_for(lambda: any(pl.get('name') == 'New K' for pl in state(e1)['events'][0]['players']), 'new player reached evaluator 1', 40)
 
+    # let evaluator 1 check players in; their check-in reaches the organizer and back out to everyone
+    org.click('text=Evaluators · ' + code); org.wait_for_selector('.erow')
+    org.locator('.erow', has_text='Coach A').locator('button', has_text='Can check in').click(); time.sleep(0.3)
+    org.screenshot(path='test/multi-4b-evaluator-settings.png')
+    sheet(org).locator('button', has_text='Done').click()
+    vidA = state(e1)['events'][0]['join']['vid']
+    wait_for(lambda: vidA in (state(e1)['events'][0].get('helpers') or []), 'helper permission reached evaluator 1', 40)
+    e1.click('button[aria-label="Back"]'); e1.click('button[aria-label="Back"]'); e1.wait_for_selector('text=Check in players')
+    e1.click('text=Check in players'); e1.wait_for_selector('.ckrow')
+    e1.locator('.ckrow', has_text='Jo P').click(); e1.locator('.ckrow', has_text='Sam L').click(); time.sleep(0.3)
+    assert e1.locator('.ckrow.on').count() == 2
+    e1.screenshot(path='test/multi-4c-checkin.png')
+    def org_sees_checkin():
+        ev = state(org)['events'][0]
+        return sum(1 for k, r in (ev.get('checks') or {}).items() if k.startswith(vidA + '|') and r.get('v') == 1) == 2
+    wait_for(org_sees_checkin, 'organizer received the check-ins', 40)
+    org.evaluate("location.hash = '#/e/%s/players'" % evid); org.wait_for_selector('text=Check-in · 2/')
+    assert org.locator('.prow2.out').count() == 2, 'players not checked in are faded'
+    e1.click('button[aria-label="Back"]'); e1.wait_for_selector('text=Start scoring')
+
     # remove evaluator 2
-    org.click('text=Evaluators · code'); org.wait_for_selector('text=Coach B')
+    org.click('text=Evaluators · ' + code); org.wait_for_selector('text=Coach B')
     sheet(org).locator('button[aria-label="Remove Coach B"]').click(); org.locator('.sheet button', has_text='Remove').last.click(); time.sleep(1)
     e2.click('text=Start scoring'); e2.wait_for_selector('.keypad'); e2.locator('.key', has_text='9').click(); e2.wait_for_selector('.srow')
     e2.locator('.srow:has(.sbtns)').nth(0).locator('.sb').nth(2).click()
@@ -108,10 +128,9 @@ with sync_playwright() as p:
 
     # stop sharing
     org.keyboard.press('Escape'); time.sleep(0.3)
-    if org.locator('.sheet').count() == 0: org.click('text=Evaluators · code')
+    if org.locator('.sheet').count() == 0: org.click('text=Evaluators · ' + code)
     org.locator('.sheet button', has_text='Stop sharing').first.click(); org.locator('.sheet button', has_text='Stop sharing').last.click()
     org.wait_for_selector('text=Share with evaluators')
-    e1.click('button[aria-label="Back"]'); e1.click('button[aria-label="Back"]')
     wait_for(lambda: 'stopped sharing' in e1.inner_text('body').lower(), 'evaluator 1 told sharing stopped', 40)
     assert len(state(org)['events'][0]['scores']) >= 5, 'organizer keeps the scores after stopping'
     e1.screenshot(path='test/multi-5-stopped.png')

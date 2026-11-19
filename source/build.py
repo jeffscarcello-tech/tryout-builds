@@ -13,7 +13,7 @@ import base64, json, os, re, sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, 'src')
-JS_ORDER = ['dom.js', 'ui.js', 'sports.js', 'store.js', 'views.js', 'score.js', 'results.js', 'pdf.js', 'qr.js', 'sync.js', 'main.js']
+JS_ORDER = ['dom.js', 'ui.js', 'sports.js', 'store.js', 'views.js', 'score.js', 'results.js', 'pdf.js', 'qr.js', 'sync.js', 'checkin.js', 'extras.js', 'main.js']
 CSS_ORDER = ['fonts.css', 'style.css', 'app.css']
 
 
@@ -42,6 +42,12 @@ def main():
     js = '\n'.join('/* ---- %s ---- */\n%s' % (n, read('js', n)) for n in JS_ORDER)
     css = '\n'.join(read('css', n) for n in CSS_ORDER)
     shell = fill(read('shell.html'))
+    # the privacy text is written once (src/pages/privacy.html) and shown both as a page and inside the app
+    privacy_page = read('pages', 'privacy.html'); about_page = read('pages', 'about.html')
+    m = re.search(r'<main id="doc">(.*?)</main>', privacy_page, re.S)
+    if not m:
+        sys.exit('privacy page has no <main id="doc">')
+    js = js.replace('__PRIVACY_DOC__', json.dumps(m.group(1).strip()), 1)
     html = shell.replace('__CSS__', css, 1).replace('__JS__', fill(js), 1)
     sw = fill(read('sw.js'))
     manifest = json.dumps({
@@ -67,7 +73,9 @@ def main():
         'build': build, 'label': label, 'app': 'tryout', 'html': html, 'sw': sw, 'manifest': manifest,
         'icon_svg': read('img', 'icon.svg'), 'i192': b64('img', 'icon-192.png'), 'i512': b64('img', 'icon-512.png'),
         'apple': b64('img', 'apple-touch-icon.png'),
-        'files': {'/icon-maskable-512.png': {'type': 'image/png', 'b64': b64('img', 'icon-maskable-512.png')}}}
+        'files': {'/icon-maskable-512.png': {'type': 'image/png', 'b64': b64('img', 'icon-maskable-512.png')},
+                  '/about': {'type': 'text/html; charset=utf-8', 'b64': base64.b64encode(about_page.encode()).decode()},
+                  '/privacy': {'type': 'text/html; charset=utf-8', 'b64': base64.b64encode(privacy_page.encode()).decode()}}}
     os.makedirs(os.path.join(ROOT, 'dist'), exist_ok=True)
     with open(os.path.join(ROOT, 'dist', 'app.json'), 'w', encoding='utf-8') as f:
         json.dump(bundle, f, separators=(',', ':'))
@@ -75,6 +83,9 @@ def main():
         f.write(build + '\n')
     with open(os.path.join(ROOT, 'dist', 'app-check.js'), 'w', encoding='utf-8') as f:
         f.write(fill(js))   # the joined JS on its own, for the syntax check
+    for n, page in (('about', about_page), ('privacy', privacy_page)):
+        with open(os.path.join(ROOT, 'dist', n + '.html'), 'w', encoding='utf-8') as f:
+            f.write(page)
     print('built', build, 'html', len(html), 'bytes; app.json', os.path.getsize(os.path.join(ROOT, 'dist', 'app.json')), 'bytes')
 
 

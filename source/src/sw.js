@@ -9,7 +9,7 @@ self.addEventListener('fetch', e => {
   const r = e.request;
   if (r.method !== 'GET') return;
   const u = new URL(r.url);
-  if (u.origin !== self.location.origin || u.pathname.startsWith('/api/') || u.pathname === '/admin' || u.pathname.startsWith('/admin/') || u.pathname === '/privacy') return;
+  if (u.origin !== self.location.origin || u.pathname.startsWith('/api/') || u.pathname === '/admin' || u.pathname.startsWith('/admin/') || u.pathname === '/privacy' || u.pathname === '/about') return;
   if (r.mode === 'navigate') {
     e.respondWith((async () => {
       const c = await caches.open(V);

@@ -10,6 +10,7 @@ results = []
 def run(p, name, vp, mobile):
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome')
     ctx = b.new_context(viewport=vp, is_mobile=mobile, has_touch=mobile, device_scale_factor=2 if mobile else 1)
+    ctx.add_init_script("localStorage.setItem('rp.notips','1')")
     pg = ctx.new_page(); errs = []
     pg.on('console', lambda m: errs.append(m.text) if m.type == 'error' else None)
     pg.on('pageerror', lambda e: errs.append(str(e)))

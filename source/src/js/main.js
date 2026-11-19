@@ -36,6 +36,7 @@ async function checkForUpdate() {
 let lastRoute = '';
 function render() {
   parseRoute();
+  if (R.name === 'demo') { const had = S.events.find(e => e.demo); location.replace('#/e/' + (had || makeDemo()).id + '/results'); return; }
   const app = document.getElementById('app'), key = location.hash, same = key === lastRoute, y = window.scrollY;
   let view;
   if (R.name === 'e') view = viewEvent(R.args[0], R.args[1]);
@@ -44,11 +45,14 @@ function render() {
   else if (R.name === 'p') view = viewPrint(R.args[0], R.args[1], R.args[2]);
   else if (R.name === 'c') view = viewCompare(R.args[0], R.args[1]);
   else if (R.name === 'm') view = viewMissing(R.args[0]);
+  else if (R.name === 'k') view = viewCheckin(R.args[0], R.args[1]);
+  else if (R.name === 'help') view = viewHelp();
+  else if (R.name === 'privacy') view = viewPrivacy();
   else if (R.name === 'templates') view = viewTemplates();
   else view = viewHome();
   app.dataset.view = R.name;
   /* browser tab and home-screen switcher show the event name with the app name */
-  const evNow = ['e', 's', 'r', 'p', 'c', 'm'].includes(R.name) ? eventById(R.args[0]) : null;
+  const evNow = ['e', 's', 'r', 'p', 'c', 'm', 'k'].includes(R.name) ? eventById(R.args[0]) : null;
   document.title = evNow ? evNow.name + ' · RosterPulse' : 'RosterPulse';
   /* every page but home ends with the RosterPulse mark */
   if (R.name !== 'home' && R.name !== 'p' && R.name) { const v = [].concat(view).flat(Infinity).filter(Boolean); const m = v.find(x => x.tagName === 'MAIN'); if (m) m.append(brandFoot()); }

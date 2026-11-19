@@ -1,6 +1,8 @@
 // =====================================================================
 // Tryout app server (Cloudflare Worker). Test site: Worker "tryouttest", D1 database "tryouttest" bound as DB.
 //
+// t3: check-in records (kind 'c', 1 here / 0 not here; evaluators only when the organizer allows them), evaluator groups
+//     and helpers carried in the event copy, the about and privacy pages are served fresh, abuse counters cleared more often.
 // t2: shared events for several phones. The organizer shares an event (gets a secret organizer key and a 6-letter join code);
 //     evaluators join with the code and their name (no account; each phone gets its own token). Scores and notes are
 //     append-only records with an id made on the phone: a repeat is ignored, the newest per evaluator/player/skill/day wins
@@ -11,7 +13,7 @@
 //
 // Health check: GET /api/health
 // =====================================================================
-const LOADER = 'tr-loader-t2';
+const LOADER = 'tr-loader-t3';
 const APP_KIND = 'tryout';          // only app files built for this app are accepted (a ShotPulse file is refused)
 const ADMIN_SALT = 'tr-admin:';
 
@@ -114,7 +116,7 @@ async function serveApp(request, env, p) {
   if (p === '/icon-192.png') return html(b64(a.i192), 'image/png', { 'Cache-Control': 'public, max-age=86400' });
   if (p === '/icon-512.png') return html(b64(a.i512), 'image/png', { 'Cache-Control': 'public, max-age=86400' });
   if (p === '/apple-touch-icon.png') return html(b64(a.apple), 'image/png', { 'Cache-Control': 'public, max-age=86400' });
-  if (a.files && Object.prototype.hasOwnProperty.call(a.files, p)) { const f = a.files[p]; if (f && typeof f.b64 === 'string' && typeof f.type === 'string') return html(b64(f.b64), f.type, { 'Cache-Control': 'public, max-age=86400' }); }
+  if (a.files && Object.prototype.hasOwnProperty.call(a.files, p)) { const f = a.files[p]; if (f && typeof f.b64 === 'string' && typeof f.type === 'string') return html(b64(f.b64), f.type, { 'Cache-Control': f.type.startsWith('text/html') ? 'no-cache' : 'public, max-age=86400' }); }
   return null;
 }
 
@@ -141,6 +143,7 @@ async function evInit(db) {
 async function rateOk(db, k, max, win) {
   const now = Date.now(), r = await db.prepare('SELECT n, win FROM srate WHERE k = ?1').bind(k).first();
   if (!r || now - r.win > win) { await db.prepare('INSERT OR REPLACE INTO srate (k, n, win) VALUES (?1, 1, ?2)').bind(k, now).run(); return true; }
+  if (Math.random() < 0.05) await db.prepare('DELETE FROM srate WHERE win < ?1').bind(now - 2 * 86400000).run();   // network addresses kept only a short time
   if (r.n >= max) return false;
   await db.prepare('UPDATE srate SET n = n + 1 WHERE k = ?1').bind(k).run(); return true;
 }
@@ -148,7 +151,10 @@ const cleanTxt = (v, n) => String(v == null ? '' : v).replace(/[<>]/g, '').repla
 /* the event as evaluators see it: name, sport, form, groups, players, days (never scores) */
 function eventData(d) {
   if (!d || typeof d !== 'object') return null;
-  const o = { name: cleanTxt(d.name, 60), sport: cleanTxt(d.sport, 20), form: d.form, groups: Array.isArray(d.groups) ? d.groups : [], players: Array.isArray(d.players) ? d.players : [], sessions: Array.isArray(d.sessions) ? d.sessions : [] };
+  const o = { name: cleanTxt(d.name, 60), sport: cleanTxt(d.sport, 20), form: d.form, groups: Array.isArray(d.groups) ? d.groups : [], players: Array.isArray(d.players) ? d.players : [], sessions: Array.isArray(d.sessions) ? d.sessions : [],
+    helpers: Array.isArray(d.helpers) ? d.helpers.map(String).filter(x => ID_RE.test(x)).slice(0, MAX_EVALS) : [],
+    assign: d.assign && typeof d.assign === 'object' && !Array.isArray(d.assign) ? d.assign : {},
+    checks: d.checks && typeof d.checks === 'object' && !Array.isArray(d.checks) ? d.checks : {} };
   if (!o.form || typeof o.form !== 'object' || o.players.length > 1500) return null;
   return o;
 }
@@ -215,12 +221,15 @@ async function handleShared(request, env, p) {
   if (act === 'sync') {
     if (who.role === 'eval' && now - (who.seen || 0) > 60000) await db.prepare('UPDATE seval SET seen = ?1 WHERE eid = ?2 AND vid = ?3').bind(now, eid, who.vid).run();
     const recs = (Array.isArray(body.recs) ? body.recs : []).slice(0, MAX_RECS_IN), good = [];
+    let helper = who.role === 'org';
+    if (!helper && recs.some(r => r && r.k === 'c')) { const d = await db.prepare('SELECT data FROM sev WHERE eid = ?1').bind(eid).first(); try { helper = (JSON.parse(d.data).helpers || []).includes(who.vid); } catch (e) { helper = false; } }
     for (const r of recs) {
-      if (!r || !RID_RE.test(String(r.id)) || (r.k !== 's' && r.k !== 'n')) continue;
+      if (!r || !RID_RE.test(String(r.id)) || (r.k !== 's' && r.k !== 'n' && r.k !== 'c')) continue;
+      if (r.k === 'c' && (!helper || (r.v !== 0 && r.v !== 1))) continue;   // check-in: the organizer, or an evaluator allowed to check in
       const by = String(r.by || ''); if (!ID_RE.test(by)) continue;
       if (who.role === 'eval' && by !== who.vid) continue;   // an evaluator can only write their own scores
       if (!ID_RE.test(String(r.p)) || !ID_RE.test(String(r.d)) || (r.s !== '' && !ID_RE.test(String(r.s)))) continue;
-      let v = null; if (r.k === 's') { if (r.v != null) { v = Number(r.v); if (!isFinite(v) || Math.abs(v) > 1e7) continue; v = String(v); } } else v = cleanTxt(r.v, 300);
+      let v = null; if (r.k === 'c') v = String(r.v); else if (r.k === 's') { if (r.v != null) { v = Number(r.v); if (!isFinite(v) || Math.abs(v) > 1e7) continue; v = String(v); } } else v = cleanTxt(r.v, 300);
       good.push({ id: String(r.id), k: r.k, by, p: String(r.p), s: String(r.s || ''), d: String(r.d), v, t: Math.min(Math.floor(+r.t) || now, now + 86400000) });
     }
     let accepted = 0;
@@ -239,7 +248,7 @@ async function handleShared(request, env, p) {
     const rows = (await q.all()).results || [], more = rows.length > MAX_RECS_OUT, out = rows.slice(0, MAX_RECS_OUT);
     const cur = await db.prepare('SELECT seq, rev, data FROM sev WHERE eid = ?1').bind(eid).first();
     const reply = { ok: true, accepted, more, seq: out.length ? out[out.length - 1].seq : (more ? since : cur.seq), rev: cur.rev,
-      recs: out.map(x => ({ id: x.id, k: x.kind, by: x.by, p: x.pid, s: x.kid, d: x.sid, v: x.kind === 's' ? (x.v == null ? null : Number(x.v)) : x.v, t: x.t })) };
+      recs: out.map(x => ({ id: x.id, k: x.kind, by: x.by, p: x.pid, s: x.kid, d: x.sid, v: x.kind === 's' || x.kind === 'c' ? (x.v == null ? null : Number(x.v)) : x.v, t: x.t })) };
     if (who.role === 'eval' && Math.floor(+body.rev || 0) !== cur.rev) reply.data = JSON.parse(cur.data);
     if (who.role === 'org') reply.evaluators = ((await db.prepare('SELECT vid, name, joined, seen FROM seval WHERE eid = ?1 ORDER BY joined, rowid').bind(eid).all()).results || []);
     return json(reply);

@@ -32,7 +32,7 @@ let n = 0; const ok = (name) => { n++; console.log('ok', n, name); };
 
 // 1. empty site
 let r = await req('/'); assert.equal(r.status, 200); assert.match(await r.text(), /Almost/); ok('empty site shows the starting page');
-r = await req('/api/health'); let j = await r.json(); assert.equal(j.app, false); assert.equal(j.loader, 'tr-loader-t2'); ok('health before install');
+r = await req('/api/health'); let j = await r.json(); assert.equal(j.app, false); assert.equal(j.loader, 'tr-loader-t3'); ok('health before install');
 r = await req('/nope'); assert.equal(r.status, 404); ok('unknown path 404');
 
 // 2. admin password
@@ -116,5 +116,11 @@ x = await api('/api/ev/e1abcdef/sync', { since: 0, recs: [] }, KEY); assert.equa
 const x2 = await api('/api/ev/e1abcdef/sync', { since: x.j.seq, recs: [] }, KEY); assert.equal(x.j.recs.length + x2.j.recs.length, 1605); assert.equal(x2.j.more, false); ok('large events come down in pages');
 for (let i = 0; i < 40; i++) await api('/api/ev/join', { code: 'QQQQQQ', name: 'x' }, {}, '6.6.6.6');
 x = await api('/api/ev/join', { code, name: 'x' }, {}, '6.6.6.6'); assert.equal(x.status, 429); ok('code guessing is limited per network');
+x = await api('/api/ev/e1abcdef/sync', { since: 99999, recs: [rec('c1', vidB, 'p1', 1, 9000, 'c', '')] }, B); assert.equal(x.j.accepted, 0); ok('an evaluator not allowed to check in is ignored');
+x = await api('/api/ev/e1abcdef/put', { data: { name: 'T', sport: 'volleyball', form: { skills: [] }, players: [{ id: 'p1' }], helpers: [vidB, 'bad id!'], assign: { [vidB]: ['g1'] }, checks: { d1: { p1: [1, 9] } } }, rev: 500 }, KEY); assert.equal(x.status, 200);
+x = await api('/api/ev/e1abcdef/sync', { since: 99999, rev: 1, recs: [rec('c2', vidB, 'p1', 1, 9100, 'c', ''), rec('c3', vidB, 'p1', 7, 9200, 'c', '')] }, B);
+assert.equal(x.j.accepted, 1); assert.deepEqual(x.j.data.helpers, [vidB]); assert.deepEqual(x.j.data.assign, { [vidB]: ['g1'] }); assert.equal(x.j.data.checks.d1.p1[0], 1); ok('allowed evaluator checks in (only 1 or 0); event copy carries helpers, groups and check-in');
+x = await api('/api/ev/e1abcdef/sync', { since: x2.j.seq, recs: [rec('c4', 'orgx', 'p1', 0, 9300, 'c', '')] }, KEY); assert.equal(x.j.accepted, 1);
+const cs = x.j.recs.filter(r => r.k === 'c'); assert.equal(cs.length, 2); assert.equal(typeof cs[0].v, 'number'); ok('organizer gets every check-in, as numbers');
 x = await api('/api/ev/e1abcdef/stop', {}, KEY); assert.equal(x.status, 200); x = await api('/api/ev/e1abcdef/sync', { recs: [] }, B); assert.equal(x.status, 410); x = await api('/api/ev/join', { code, name: 'Late' }, {}, '7.7.7.7'); assert.equal(x.status, 404); ok('stop sharing: everything removed, evaluators told it is gone');
 console.log('ALL', n, 'SERVER TESTS PASSED');

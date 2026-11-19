@@ -3,13 +3,13 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert';  // loose deepEqual: arrays made inside the vm have a different prototype
 
-const src = ['sports.js', 'store.js', 'score.js', 'results.js', 'pdf.js', 'sync.js'].map(f => readFileSync(new URL('../src/js/' + f, import.meta.url), 'utf8')).join('\n');
+const src = ['sports.js', 'store.js', 'score.js', 'results.js', 'pdf.js', 'sync.js', 'checkin.js', 'extras.js'].map(f => readFileSync(new URL('../src/js/' + f, import.meta.url), 'utf8')).join('\n').replace('__PRIVACY_DOC__', '""');
 const mem = {};
 const ctx = { console, JSON, Date, Math, Map, Set, String, Object, Array, parseInt, setTimeout, clearTimeout,
   localStorage: { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } },
   window: { addEventListener() { } }, document: { addEventListener() { }, querySelectorAll: () => [], hidden: false }, navigator: { onLine: false }, toast() { } };
 vm.createContext(ctx);
-vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind, computeResults, notesFor, convertScale, hasSkillScores, scaleMax, skillApplies, skillChoices, scaleLo, scaleHi, useSlider, scaleLabel, makePdf, pdfText, wrapText, mergeRecs, queued, waitingCount, payloadOf, myId, isShared };', ctx);
+vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind, computeResults, notesFor, convertScale, hasSkillScores, scaleMax, skillApplies, skillChoices, scaleLo, scaleHi, useSlider, scaleLabel, makePdf, pdfText, wrapText, mergeRecs, queued, waitingCount, payloadOf, myId, isShared, checkinFor, setHere, checkMapOf, myGroups, groupPlayers, canCheckIn, makeDemo, computeResults, ensureChecks };', ctx);
 const T = ctx.__t;
 let n = 0; const ok = m => { n++; console.log('ok', n, m); };
 
@@ -146,6 +146,28 @@ assert.ok(T.wrapText('word '.repeat(60), 10, 200).length > 3); ok('long text wra
   T.mergeRecs(E, [{ id: 'aaa1', k: 's', by: 'v3', p: 'p1', s: k, d: 'd1', v: 2, t: 9 }, { id: 'bbb1', k: 's', by: 'v3', p: 'p1', s: k, d: 'd1', v: 3, t: 9 }]); assert.equal(E.scores['v3|p1|' + k + '|d1'].v, 3); ok('same time: the higher id wins on every phone');
   const P = T.payloadOf(E); assert.equal(P.players[0].notes, undefined); assert.equal(P.players[0].name, 'A'); ok('evaluators never get private player notes');
   assert.ok(T.isShared(E)); assert.ok(!T.isShared({})); ok('shared or not');
+}
+// check-in, evaluator groups, demo
+{
+  const E = { id: 'eck1', form: T.formFromSport('volleyball'), groups: [{ id: 'ga', name: 'A' }, { id: 'gb', name: 'B' }], sessions: [{ id: 'd1', name: 'Day 1' }, { id: 'd2', name: 'Day 2' }],
+    players: [{ id: 'p1', num: '1', group: 'ga' }, { id: 'p2', num: '2', group: 'ga', present: false }, { id: 'p3', num: '3', group: 'gb' }], scores: {}, notes: {} };
+  let ci = T.checkinFor(E, 'd2'); assert.ok(ci.used && !ci.isHere(E.players[1]) && ci.isHere(E.players[0])); assert.equal(E.players[1].present, undefined); ok('old "not here" switch becomes the latest day\'s check-in');
+  ci = T.checkinFor(E, 'd1'); assert.ok(!ci.used && ci.isHere(E.players[1])); ok('a day with no check-ins counts everyone as here');
+  T.setHere(E, 'p3', 'd1', true); ci = T.checkinFor(E, 'd1'); assert.ok(ci.used && ci.isHere(E.players[2]) && !ci.isHere(E.players[0])); assert.equal(ci.count, 1); ok('first check-in of a day turns check-in on for that day');
+  const k = Object.keys(E.checks).find(x => x.includes('|p3||d1')); assert.equal(E.checks[k].q, 1); ok('check-ins wait to be sent like scores');
+  T.mergeRecs(E, [{ id: 'cc99', k: 'c', by: 'vhelp', p: 'p1', s: '', d: 'd1', v: 1, t: Date.now() + 5000 }]); assert.ok(T.checkinFor(E, 'd1').isHere(E.players[0])); ok('a helper\'s check-in merges in');
+  T.mergeRecs(E, [{ id: 'cc98', k: 'c', by: 'vhelp2', p: 'p1', s: '', d: 'd1', v: 0, t: Date.now() + 9000 }]); assert.ok(!T.checkinFor(E, 'd1').isHere(E.players[0])); ok('newest check-in wins, whoever made it');
+  const M = T.checkMapOf(E); assert.deepEqual(Object.keys(M).sort(), ['d1', 'd2']); assert.equal(M.d1.p1[0], 0); assert.equal(M.d1.p3[0], 1); ok('combined check-in list for evaluators');
+  const EV = { id: 'eck2', form: E.form, groups: E.groups, sessions: E.sessions, players: E.players.map(p => ({ id: p.id, num: p.num, group: p.group })), scores: {}, notes: {}, checks: {}, join: { vid: 'vme' }, assign: { vme: ['gb'] }, helpers: [], checkMap: M };
+  assert.deepEqual(T.groupPlayers(EV, 'all').map(p => p.id), ['p3']); assert.deepEqual(T.myGroups(EV), ['gb']); ok('an evaluator given Group B sees only Group B');
+  EV.assign = {}; assert.equal(T.groupPlayers(EV, 'all').length, 3); ok('no groups given: everyone');
+  assert.ok(!T.checkinFor(EV, 'd1').isHere(EV.players[0]) && T.checkinFor(EV, 'd1').isHere(EV.players[2])); ok('evaluators see the organizer\'s check-in list');
+  assert.ok(!T.canCheckIn(EV)); EV.helpers = ['vme']; assert.ok(T.canCheckIn(EV)); ok('only allowed evaluators can check in');
+  E.share = { assign: { v1: ['ga'] }, helpers: ['v1'] }; const P = T.payloadOf(E); assert.deepEqual(P.helpers, ['v1']); assert.deepEqual(P.assign, { v1: ['ga'] }); assert.ok(P.checks.d1); ok('event copy carries groups per evaluator, helpers and check-in');
+  const before = T.S.events.length, D = T.makeDemo(); assert.equal(T.S.events.length, before + 1); assert.ok(D.demo);
+  const R = T.computeResults(D, 'all'); assert.equal(R.rows.filter(r => r.pct != null).length, 15); assert.ok(R.rows.some(r => r.nEval === 3)); assert.ok(Object.keys(D.evaluators).length === 3);
+  assert.ok(!T.checkinFor(D, D.sessions[0].id).isHere(D.players[15])); ok('demo event: 16 players, 15 scored by up to 3 coaches, one not checked in');
+  T.S.events = T.S.events.filter(x => x !== D);
 }
 require_fs: { const fs = await import('node:fs'); fs.writeFileSync('/tmp/rp-test.pdf', pdf); }
 console.log('ALL', n, 'UNIT TESTS PASSED');

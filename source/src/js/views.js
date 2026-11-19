@@ -51,6 +51,7 @@ function viewHome() {
   const evs = S.events;
   return [brandBar(connPill()),
     h('main', { class: 'page' },
+      tip('home', 'New here? Tap Try the demo to look around a sample tryout with scores already in. When you are ready, tap New event.'),
       h('div', { class: 'hero' }, h('h1', { class: 'disp' }, 'Tryouts and camps'),
         h('p', { class: 'muted' }, 'Set up your event, load your roster, and score players by jersey number.')),
       h('button', { class: 'btn primary block big', style: 'margin-top:14px', onclick: newEventSheet }, icon('plus'), 'New event'),
@@ -59,13 +60,18 @@ function viewHome() {
       evs.length ? h('div', { class: 'list' }, evs.map(ev => {
         const sp = sportById(ev.sport), w = wordsOf(ev);
         return h('button', { class: 'evcard', onclick: () => go('e', ev.id, 'players') },
-          h('div', { class: 'nm ellip' }, ev.name, ev.join ? h('span', { class: 'ebadge' }, 'Evaluator') : ev.share ? h('span', { class: 'ebadge sh' }, 'Shared') : null),
+          h('div', { class: 'nm ellip' }, ev.name, ev.join ? h('span', { class: 'ebadge' }, 'Evaluator') : ev.share ? h('span', { class: 'ebadge sh' }, 'Shared') : ev.demo ? h('span', { class: 'ebadge demo' }, 'Demo') : null),
           h('div', { class: 'sub' }, [sp.name, plural(ev.players.length, w.player, w.players), ev.groups.length ? plural(ev.groups.length, 'group', 'groups') : null, fmtDate(ev.created)].filter(Boolean).join(' · ')));
-      })) : h('div', { class: 'empty' }, 'No events yet. Tap New event to set up your first tryout or camp.'),
+      })) : h('div', { class: 'empty' }, 'No events yet. Tap New event to set up your first tryout or camp, or try the demo.'),
+      evs.some(e => e.demo) ? null : h('button', { class: 'btn block ghost', style: 'margin-top:10px', onclick: openDemo }, icon('play'), 'Try the demo'),
       sect('More'),
       h('div', { class: 'list' },
         h('button', { class: 'item', onclick: () => go('templates') }, icon('clip'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'My templates'), h('div', { class: 'pmeta' }, plural(S.templates.length, 'saved form', 'saved forms'))), icon('chev')),
         h('button', { class: 'item', onclick: backupSheet }, icon('dl'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Back up or restore'), h('div', { class: 'pmeta' }, 'Everything is stored on this phone for now')), icon('chev')),
+        h('button', { class: 'item', onclick: () => go('help') }, icon('help'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Help'), h('div', { class: 'pmeta' }, 'How it works, step by step')), icon('chev')),
+        h('button', { class: 'item', onclick: () => go('privacy') }, icon('eye'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Privacy'), h('div', { class: 'pmeta' }, 'What is stored, where, and for how long')), icon('chev')),
+        h('button', { class: 'item', onclick: () => { location.href = '/about'; } }, icon('target'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'About RosterPulse'), h('div', { class: 'pmeta' }, 'The page to show other coaches')), icon('chev')),
+        S.settings.tips && Object.keys(S.settings.tips).length ? h('button', { class: 'item', onclick: () => { S.settings.tips = {}; save(); toast('Tips will show again.'); render(); } }, icon('bell'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Show tips again')), icon('chev')) : null,
         h('button', { class: 'item', onclick: checkForUpdate }, icon('history'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Check for updates'), h('div', { class: 'pmeta' }, 'Version ' + APP.build)), icon('chev'))),
       brandFoot(), h('p', { class: 'faint tiny center' }, APP.label))];
 }
@@ -137,9 +143,13 @@ function playersTab(ev) {
   if (playerFilter !== 'all' && playerFilter !== 'none' && !groupsById[playerFilter]) playerFilter = 'all';
   const shown = sortPlayers(ev.players.filter(p => playerFilter === 'all' || (playerFilter === 'none' ? !groupsById[p.group] : p.group === playerFilter)));
   const unassigned = ev.players.filter(p => !groupsById[p.group]).length;
+  const ci = checkinFor(ev, todayDay(ev));
   return [
+    tip('players', 'Add ' + W.players + ' one at a time or paste a list. Start scoring to score on this phone. Share with evaluators lets other coaches score on their own phones.'),
     ev.players.length ? h('button', { class: 'btn primary block big', style: 'margin-bottom:12px', onclick: () => startScoring(ev) }, icon('check'), 'Start scoring') : null,
-    ev.players.length ? h('button', { class: 'btn block', style: 'margin-bottom:12px', onclick: () => shareSheet(ev) }, icon('qr'), ev.share ? 'Evaluators · code ' + ev.share.code : 'Share with evaluators') : null,
+    ev.players.length ? h('div', { class: 'toprow', style: 'margin-bottom:12px' },
+      h('button', { class: 'btn', onclick: () => shareSheet(ev) }, icon('qr'), ev.share ? 'Evaluators · ' + ev.share.code : 'Share with evaluators'),
+      h('button', { class: 'btn', onclick: () => go('k', ev.id, todayDay(ev)) }, icon('check'), ci.used ? 'Check-in · ' + ci.count + '/' + ev.players.length : 'Check-in')) : null,
     h('div', { class: 'toprow' },
       h('button', { class: 'btn' + (ev.players.length ? '' : ' primary'), onclick: () => playerSheet(ev, null) }, icon('plus'), 'Add ' + W.player),
       h('button', { class: 'btn', onclick: () => importSheet(ev) }, icon('file'), 'Import list')),
@@ -150,7 +160,7 @@ function playersTab(ev) {
     dup.size ? h('p', { class: 'warn', style: 'margin-bottom:10px' }, 'Some numbers are used twice' + (ev.groups.length ? ' in the same group' : '') + ' (shown in red). Evaluators score by number, so each needs its own.') : null,
     shown.length ? h('div', { class: 'list', style: 'gap:8px' }, shown.map(p => {
       const g = groupsById[p.group];
-      return h('button', { class: 'prow2' + (p.present === false ? ' out' : ''), onclick: () => go('r', ev.id, p.id) },
+      return h('button', { class: 'prow2' + (ci.isHere(p) ? '' : ' out'), onclick: () => go('r', ev.id, p.id) },
         h('span', { class: 'jn' + (dup.has((p.group || '') + '|' + p.num) ? ' dup' : '') }, p.num || '–'),
         h('div', { class: 'grow', style: 'min-width:0' }, h('div', { class: 'pnm ellip' }, p.name || 'No name'),
           h('div', { class: 'pmeta ellip' }, [p.pos, p.div, g ? g.name : null, p.notes ? 'Note' : null].filter(Boolean).join(' · ') || ' ')),
@@ -166,7 +176,7 @@ function chipPick(options, value, onPick, allowNone = true) {
 }
 
 function playerSheet(ev, p) {
-  const isNew = !p, d = Object.assign({ num: '', name: '', pos: '', div: '', group: playerFilter !== 'all' && playerFilter !== 'none' ? playerFilter : '', notes: '', present: true }, p || {});
+  const isNew = !p, d = Object.assign({ num: '', name: '', pos: '', div: '', group: playerFilter !== 'all' && playerFilter !== 'none' ? playerFilter : '', notes: '' }, p || {});
   openSheet((s, api) => {
     const num = h('input', { class: 'inp', value: d.num, inputmode: 'numeric', maxlength: '4', placeholder: '12', style: 'max-width:120px' });
     const name = h('input', { class: 'inp', value: d.name, maxlength: '40', placeholder: 'First name and last initial is enough' });
@@ -183,7 +193,6 @@ function playerSheet(ev, p) {
         ev.form.positions.length ? field(cap(W.position), chipPick(ev.form.positions.map(x => [x, x]), d.pos, v => { d.pos = v; })) : null,
         ev.form.divisions.length ? field('Age division', chipPick(ev.form.divisions.map(x => [x, x]), d.div, v => { d.div = v; })) : null,
         ev.groups.length ? field('Group', chipPick(ev.groups.map(g => [g.id, g.name]), d.group, v => { d.group = v; })) : null,
-        field('Checked in', chipPick([['yes', 'Here'], ['no', 'Not here']], d.present === false ? 'no' : 'yes', v => { d.present = v !== 'no'; }, false)),
         field('Notes', notes),
         h('p', { class: 'note' }, 'Keep it minimal: number, name, ' + W.position + ' and age division. No birthdays, emails or phone numbers needed.')),
       h('div', { class: 'acts' },
@@ -223,7 +232,7 @@ function importSheet(ev) {
         let gid = '';
         if (p.group) { let g = ev.groups.find(x => x.name.toLowerCase() === p.group.toLowerCase()); if (!g) { g = { id: uid('g'), name: clean(p.group, 40), when: '', where: '' }; ev.groups.push(g); made++; } gid = g.id; }
         if (p.div && !ev.form.divisions.some(x => x.toLowerCase() === p.div.toLowerCase())) ev.form.divisions.push(p.div);
-        ev.players.push({ id: uid('p'), num: p.num, name: p.name, pos: p.pos, div: p.div, group: gid, notes: p.notes, present: true });
+        ev.players.push({ id: uid('p'), num: p.num, name: p.name, pos: p.pos, div: p.div, group: gid, notes: p.notes });
       }
       touch(ev); api.close(); render(); toast(plural(parsed.players.length, W.player, W.players) + ' added' + (made ? ', ' + plural(made, 'group', 'groups') + ' created' : '') + '.');
     };

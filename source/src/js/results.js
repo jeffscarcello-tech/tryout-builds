@@ -153,6 +153,7 @@ function resultsTab(ev) {
     if (line && i === line - 1 && scored.length > line) list.push(h('div', { class: 'tline' }, h('span', null, 'Team line · ' + line + ' spots')));
   });
   return [
+    tip('results', 'Sort by overall or any skill, filter by ' + W.position + ' or group, and move the team line with − and +. Tap a ' + W.player + ' for their full card. Save as PDF makes a file you can print or email.'),
     h('div', { class: 'rfilters' },
       h('div', { class: 'row' }, h('span', { class: 'lbl', style: 'min-width:54px' }, 'Sort'), h('div', { class: 'grow' }, sel('Sort by', RS.sort, sortOpts, v => { RS.sort = v || 'overall'; }, true))),
       ev.sessions.length > 1 ? h('div', { class: 'seg' }, [['all', 'All days']].concat(ev.sessions.map(d => [d.id, d.name])).map(([k, l]) => h('button', { class: RS.day === k ? 'on' : '', onclick: () => { RS.day = k; render(); } }, l))) : null,
@@ -202,7 +203,7 @@ function viewPlayerCard(evId, pid) {
       h('div', { class: 'pinfo' },
         h('div', { class: 'row', style: 'gap:12px' }, h('span', { class: 'jn big' }, p.num || '–'),
           h('div', { class: 'grow', style: 'min-width:0' }, h('div', { class: 'pnm', style: 'font-size:20px' }, p.name || 'No name'),
-            h('div', { class: 'pmeta' }, [p.pos || 'No ' + W.position, gname || 'No group', p.div || null, p.present === false ? 'Not checked in' : 'Checked in'].filter(Boolean).join(' · '))),
+            h('div', { class: 'pmeta' }, [p.pos || 'No ' + W.position, gname || 'No group', p.div || null, (() => { const ci = checkinFor(ev, todayDay(ev)); return ci.used ? (ci.isHere(p) ? 'Checked in' : 'Not checked in') : null; })()].filter(Boolean).join(' · '))),
           h('button', { class: 'btn sm', onclick: () => playerSheet(ev, p) }, icon('edit'), 'Edit')),
         p.notes ? h('div', { class: 'snote', style: 'margin-top:8px' }, 'Roster note: ' + p.notes) : null),
       h('button', { class: 'btn primary block', style: 'margin:12px 0 4px', onclick: async () => { if (!(await ensureEvaluatorName())) return; const sid = ((S.settings.day || {})[ev.id] && ev.sessions.some(d => d.id === S.settings.day[ev.id])) ? S.settings.day[ev.id] : ev.sessions[ev.sessions.length - 1].id; go('s', ev.id, sid, 'all', p.id); } }, icon('check'), r.nEval ? 'Score this ' + W.player + ' again' : 'Score this ' + W.player),
@@ -359,16 +360,18 @@ function viewMissing(evId) {
   const sid = RS.day === 'all' ? ev.sessions[ev.sessions.length - 1].id : RS.day, day = ev.sessions.find(d => d.id === sid);
   const evs = evaluatorsOf(ev); for (const v of Object.keys(ev.evaluators || {})) if (!evs.includes(v)) evs.push(v); if (S.settings.me && S.settings.me.name && !evs.includes(S.settings.me.id)) evs.push(S.settings.me.id);
   const groups = ev.groups.length ? ev.groups.map(g => [g.id, g.name]).concat(ev.players.some(p => !ev.groups.some(g => g.id === p.group)) ? [['', 'No group']] : []) : [['', null]];
-  const inG = gid => sortPlayers(ev.players.filter(p => gid ? p.group === gid : !ev.groups.some(g => g.id === p.group)));
-  const nobody = sortPlayers(ev.players.filter(p => !evs.some(by => progressOf(ev, p, sid, by).done)));
+  const ci = checkinFor(ev, sid);
+  const inG = gid => sortPlayers(ev.players.filter(p => ci.isHere(p) && (gid ? p.group === gid : !ev.groups.some(g => g.id === p.group))));
+  const nobody = sortPlayers(ev.players.filter(p => ci.isHere(p) && !evs.some(by => progressOf(ev, p, sid, by).done)));
+  const assigned = by => { const a = ev.share && ev.share.assign && ev.share.assign[by]; return a && a.length ? a : null; };
   return [topBar('Missing scores', ['e', ev.id, 'results']),
     h('main', { class: 'page' },
       ev.sessions.length > 1 ? h('div', { class: 'seg', style: 'margin-bottom:12px' }, ev.sessions.map(d => h('button', { class: sid === d.id ? 'on' : '', onclick: () => { RS.day = d.id; render(); } }, d.name))) : null,
-      h('p', { class: 'note' }, 'For each evaluator: the ' + W.players + ' they have not fully scored' + (ev.sessions.length > 1 ? ' on ' + day.name : '') + '. Evaluators who joined on their own phones show here as soon as they join.'),
+      h('p', { class: 'note' }, 'For each evaluator: the ' + W.players + ' they have not fully scored' + (ev.sessions.length > 1 ? ' on ' + day.name : '') + '. Evaluators who joined on their own phones show here as soon as they join.' + (ci.used ? ' Only ' + W.players + ' checked in are counted.' : '')),
       sect('Not scored by anyone', h('span', { class: 'cnt' }, nobody.length || '')),
       nobody.length ? h('div', { class: 'chips' }, nobody.map(p => h('button', { class: 'chip', onclick: () => go('r', ev.id, p.id) }, '#' + (p.num || '–') + ' ' + (p.name || '').split(' ')[0]))) : h('p', { class: 'note' }, 'Everyone has at least one score.'),
       evs.length ? evs.map(by => {
-        const parts = groups.map(([gid, gname]) => { const miss = inG(gid).map(p => [p, progressOf(ev, p, sid, by)]).filter(([, pr]) => pr.done < pr.all); return [gname, miss]; }).filter(([, m]) => m.length);
+        const parts = groups.filter(([gid]) => !assigned(by) || assigned(by).includes(gid)).map(([gid, gname]) => { const miss = inG(gid).map(p => [p, progressOf(ev, p, sid, by)]).filter(([, pr]) => pr.done < pr.all); return [gname, miss]; }).filter(([, m]) => m.length);
         const total = parts.reduce((a, [, m]) => a + m.length, 0);
         return [sect(evalName(ev, by), h('span', { class: 'cnt' }, total ? total + ' to go' : 'all done')),
           total ? parts.map(([gname, miss]) => [gname ? h('div', { class: 'lbl', style: 'margin:6px 0' }, gname) : null, h('div', { class: 'list', style: 'gap:6px' }, miss.map(([p, pr]) => h('button', { class: 'prow2', onclick: () => go('r', ev.id, p.id) }, h('span', { class: 'jn' }, p.num || '–'), h('div', { class: 'grow pnm ellip' }, p.name || 'No name'), h('span', { class: 'pbadge' + (pr.done ? '' : ' miss') }, pr.done ? pr.done + '/' + pr.all : 'none'))))]) : h('p', { class: 'note' }, 'Every ' + W.player + ' fully scored.')];
