@@ -1,5 +1,5 @@
-# Browser run of t23: Open on my phone. The computer (desktop or phone size) makes an event with a pasted list,
-# taps Open on my phone (sharing starts by itself), the phone opens the link from the QR code, gets the name filled in,
+# Browser run of t23: Open on another device. The computer (desktop or phone size) makes an event with a pasted list,
+# taps Open on another device (sharing starts by itself), the phone opens the link from the QR code, gets the name filled in,
 # joins and has the whole list. Then changes go both ways. Needs test/serve.mjs on :8787.
 import sys, time, json
 from playwright.sync_api import sync_playwright
@@ -44,10 +44,10 @@ def run(p, name, vp, mobile):
     comp.wait_for_selector('text=Lily R')
     assert not state(comp)['events'][0].get('share'), 'not shared yet'
 
-    # ••• Open on my phone
+    # ••• Open on another device
     comp.locator('button[aria-label="Event options"]').click(); comp.wait_for_selector('.sheet .item')
-    comp.locator('.sheet .item', has_text='Open on my phone').click()
-    comp.wait_for_selector('text=Open on your phone'); comp.wait_for_selector('.jcode8')
+    comp.locator('.sheet .item', has_text='Open on another device').click()
+    comp.wait_for_selector('text=Open on another device'); comp.wait_for_selector('.jcode8')
     code = comp.locator('.jcode8').inner_text().replace('\n', '').replace(' ', ''); assert len(code) == 8, code
     assert comp.locator('.sheet .qrbox svg').count() == 1
     assert state(comp)['events'][0]['share'].get('key'), 'sharing started by itself'
@@ -87,7 +87,7 @@ def run(p, name, vp, mobile):
 
     # the menu item is not offered to the joined phone (only the owner can make codes)
     ph.locator('button[aria-label="Event options"]').click(); ph.wait_for_selector('.sheet .item')
-    assert ph.locator('.sheet .item', has_text='Open on my phone').count() == 0
+    assert ph.locator('.sheet .item', has_text='Open on another device').count() == 0
     b.close()
     assert not errs, errs
     print(name, 'ok')

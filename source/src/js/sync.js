@@ -173,8 +173,8 @@ async function startShare(ev) {
   for (const o of boxes(ev)) for (const k in o) if (o[k] && k.split('|')[0] === myId(ev)) o[k].q = 1;   // your own scores and check-ins go up too
   save(true); syncSoon(ev);
 }
-/* Open on my phone (t23): the same event on your own phone, kept in step. It is an organizer invite with plainer words. */
-async function openOnPhone(ev) {
+/* Open on another device (t23, renamed t24): the same event on your other phone, tablet or computer, kept in step. It is an organizer invite with plainer words. */
+async function openOnDevice(ev) {
   if (ev.share && !isOwner(ev)) { toast('Only the phone or computer that started sharing can do this.'); return; }
   if (!navigator.onLine) { toast('This needs a signal. Try again when online.'); return; }
   if (!ev.share) {
@@ -247,15 +247,15 @@ function organizersPart(ev, paint) {
 async function orgInviteSheet(ev, mine) {
   if (!navigator.onLine) { toast('Adding an organizer needs a signal.'); return; }
   let j; try { j = await api('/api/ev/' + ev.id + '/orginvite', {}, authOf(ev)); } catch (e) { toast(e.message); return; }
-  if (mine) {   // Open on my phone
+  if (mine) {   // Open on another device
     const link = joinLink(j.code) + (me().name ? '?n=' + encodeURIComponent(me().name) : ''), qr = h('div', { class: 'qrbox' }); qr.innerHTML = QR.svg(link, { margin: 2 });
-    openSheet((s, api_) => s.append(h('h2', null, 'Open on your phone'),
-      h('p', { class: 'note center' }, 'Point your phone camera at this code and tap the link.'), qr,
-      h('p', { class: 'note center', style: 'margin-top:10px' }, 'Using RosterPulse from your Home Screen? Open it there, tap ', h('b', null, 'Join with a code'), ' and type:'),
+    openSheet((s, api_) => s.append(h('h2', null, 'Open on another device'),
+      h('p', { class: 'note center' }, 'On your other phone or tablet, point the camera at this code and tap the link.'), qr,
+      h('p', { class: 'note center', style: 'margin-top:10px' }, 'On a computer, or using RosterPulse from your Home Screen? Open RosterPulse there, tap ', h('b', null, 'Join with a code'), ' and type:'),
       h('div', { class: 'jcode jcode8' }, j.code.split('').map(c => h('b', null, c))),
-      h('p', { class: 'note center' }, 'Your phone gets the whole event (' + W.players + ', groups, form and notes) and changes go both ways. The code works once, for 48 hours.'),
+      h('p', { class: 'note center' }, 'The other device gets the whole event (' + W.players + ', groups, form and notes) and changes go both ways. The code works once, for 48 hours.'),
       h('div', { class: 'toprow', style: 'margin-top:10px' },
-        h('button', { class: 'btn', onclick: async () => { try { if (navigator.share) await navigator.share({ title: ev.name + ' · RosterPulse', text: 'Open ' + ev.name + ' on my phone (code ' + j.code + ')', url: link }); else { await navigator.clipboard.writeText(link); toast('Link copied.'); } } catch (e) { /* cancelled */ } } }, icon('share'), 'Send link'),
+        h('button', { class: 'btn', onclick: async () => { try { if (navigator.share) await navigator.share({ title: ev.name + ' · RosterPulse', text: 'Open ' + ev.name + ' on another device (code ' + j.code + ')', url: link }); else { await navigator.clipboard.writeText(link); toast('Link copied.'); } } catch (e) { /* cancelled */ } } }, icon('share'), 'Send link'),
         h('button', { class: 'btn primary', onclick: () => api_.close() }, 'Done'))));
     return;
   }

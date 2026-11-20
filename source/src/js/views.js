@@ -52,8 +52,20 @@ function promptBox({ title, value = '', placeholder = '', ok = 'Save', max = 40,
 }
 
 /* ---------------- home ---------------- */
+/* t24: each event gets its own colour on the Home screen (kept on this device only, never synced).
+   A new event takes the colour used least so far, so cards next to each other differ. */
+const EVENT_COLORS = ['#ff8a3d', '#4da3ff', '#35c9a0', '#a98bff', '#ff6f91', '#e8b931', '#6fcf5f', '#45c8e0'];
+function colorOf(ev) {
+  if (!EVENT_COLORS.includes(ev.color)) {
+    const used = EVENT_COLORS.map(c => S.events.filter(x => x !== ev && x.color === c).length);
+    ev.color = EVENT_COLORS[used.indexOf(Math.min(...used))]; save();
+  }
+  return ev.color;
+}
+const initialsOf = name => { const w = String(name || '').trim().split(/\s+/).filter(Boolean); return ((w[0] || '?')[0] + (w[1] ? w[1][0] : (w[0] || '')[1] || '')).toUpperCase(); };
+
 function viewHome() {
-  const evs = S.events;
+  const evs = S.events.slice().reverse(); evs.forEach(colorOf); evs.reverse();   // oldest first, so colours stay put as events are added
   return [brandBar(connPill()),
     h('main', { class: 'page' },
       installCard(),
@@ -65,9 +77,16 @@ function viewHome() {
       sect('Your events', h('span', { class: 'cnt' }, evs.length || '')),
       evs.length ? h('div', { class: 'list' }, evs.map(ev => {
         const sp = sportById(ev.sport), w = wordsOf(ev);
-        return h('button', { class: 'evcard', onclick: () => go('e', ev.id, 'players') },
-          h('div', { class: 'nm ellip' }, ev.name, ev.join ? h('span', { class: 'ebadge' }, 'Evaluator') : ev.share ? h('span', { class: 'ebadge sh' }, isOwner(ev) ? 'Shared' : 'Organizer') : ev.demo ? h('span', { class: 'ebadge demo' }, 'Demo') : null),
-          h('div', { class: 'sub' }, [sp.name, plural(ev.players.length, w.player, w.players), ev.groups.length ? plural(ev.groups.length, 'group', 'groups') : null, fmtDate(ev.created)].filter(Boolean).join(' · ')));
+        return h('button', { class: 'evcard', style: '--ec:' + colorOf(ev), onclick: () => go('e', ev.id, 'players') },
+          h('div', { class: 'evtile', 'aria-hidden': 'true' }, initialsOf(ev.name)),
+          h('div', { class: 'evtext' },
+            h('div', { class: 'nm ellip' }, ev.name),
+            h('div', { class: 'sub' }, [sp.name, plural(ev.players.length, w.player, w.players), ev.groups.length ? plural(ev.groups.length, 'group', 'groups') : null, fmtDate(ev.created)].filter(Boolean).join(' · ')),
+            h('div', { class: 'evtags' },
+              ev.join ? h('span', { class: 'ebadge' }, 'Evaluator') : ev.share ? h('span', { class: 'ebadge sh' }, isOwner(ev) ? 'Shared' : 'Organizer') : null,
+              ev.demo ? h('span', { class: 'ebadge demo' }, 'Demo') : null,
+              ev.locked ? h('span', { class: 'ebadge done' }, 'Finished') : null)),
+          icon('chev'));
       })) : h('div', { class: 'empty' }, 'No events yet. Tap New event to set up your first tryout or camp, or try the demo.'),
       evs.some(e => e.demo) ? null : h('button', { class: 'btn block ghost', style: 'margin-top:10px', onclick: openDemo }, icon('play'), 'Try the demo'),
       sect('More'),
@@ -130,7 +149,7 @@ function eventMenu(ev) {
     const row = (ic, label, fn, danger) => h('button', { class: 'item' + (danger ? ' danger' : ''), style: danger ? 'color:var(--bad)' : null, onclick: () => { api.close(); fn(); } }, icon(ic), h('div', { class: 'pnm grow' }, label));
     s.append(h('h2', null, ev.name), h('div', { class: 'list' },
       row('qr', ev.share ? 'Evaluators, organizers and codes' : 'Share with evaluators and organizers', () => shareSheet(ev)),
-      !ev.share || isOwner(ev) ? row('phone', 'Open on my phone', () => openOnPhone(ev)) : null,
+      !ev.share || isOwner(ev) ? row('phone', 'Open on another device', () => openOnDevice(ev)) : null,
       row('target', 'Team decisions', () => go('x', ev.id)),
       row('copy', 'Copy this event', () => copyEventSheet(ev)),
       ev.locked ? row('history', 'Unlock scoring', () => finishEvent(ev, false)) : row('check', 'Finish event (lock scoring)', () => finishEvent(ev, true)),

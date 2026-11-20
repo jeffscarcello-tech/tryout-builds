@@ -8,10 +8,20 @@
 .cnt{margin-left:auto;font-size:13px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}
 .conn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid var(--line2);font-size:13px;font-weight:700}
 .conn .dot{background:var(--good)} .conn.off .dot{background:var(--bad)}
-.evcard{display:flex;flex-direction:column;gap:4px;padding:14px 16px;border-radius:var(--r);background:var(--panel);border:1px solid var(--line);text-align:left;width:100%}
-.evcard:active{background:var(--panel2)}
+.evcard{--ec:var(--accent);display:flex;flex-direction:row;align-items:center;gap:12px;padding:12px 12px 12px 14px;border-radius:var(--r);text-align:left;width:100%;
+  background:linear-gradient(90deg,color-mix(in srgb,var(--ec) 13%,var(--panel)) 0%,var(--panel) 55%);border:1px solid color-mix(in srgb,var(--ec) 28%,var(--line));box-shadow:inset 4px 0 0 var(--ec)}
+.evcard:active{background:color-mix(in srgb,var(--ec) 18%,var(--panel2))}
+.evcard .evtile{flex:none;width:46px;height:46px;border-radius:12px;display:grid;place-items:center;font-weight:800;font-size:17px;letter-spacing:.02em;
+  color:var(--ec);background:color-mix(in srgb,var(--ec) 18%,transparent);border:1px solid color-mix(in srgb,var(--ec) 45%,transparent)}
+.evcard .evtext{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
 .evcard .nm{font-size:18px;font-weight:800}
 .evcard .sub{font-size:13px;color:var(--muted);font-weight:600}
+.evcard .evtags{display:flex;gap:6px;flex-wrap:wrap}.evcard .evtags:empty{display:none}
+.evcard .evtags .ebadge{margin-left:0}
+.evcard > svg{flex:none;color:color-mix(in srgb,var(--ec) 70%,var(--muted));opacity:.8}
+.ebadge.done{color:var(--good);border-color:rgba(80,200,120,.45)}
+:root[data-theme=glare] .evcard{background:linear-gradient(90deg,color-mix(in srgb,var(--ec) 12%,#fff) 0%,#fff 60%)}
+:root[data-theme=glare] .evcard .evtile{color:color-mix(in srgb,var(--ec) 70%,#000)}
 .subtabs{position:sticky;top:calc(56px + var(--safe-t));z-index:20;background:var(--bg);padding:10px 16px;border-bottom:1px solid var(--line)}
 .prow2{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:8px 12px;border-radius:14px;border:1px solid var(--line);background:var(--panel);text-align:left}
 .prow2:active{background:var(--panel2)}

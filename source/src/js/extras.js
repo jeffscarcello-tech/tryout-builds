@@ -75,10 +75,10 @@ const HELP = [
     'Coaches see only their own scores. You see everyone\'s in Results as they come in. Missing scores shows who still needs scoring by whom.',
     'No signal in the gym is fine: scores wait on each phone and send when it reconnects. The pill at the top shows how many are waiting.',
     'Stop sharing any time. You keep every score.']],
-  ['Move an event to your phone', [
-    'Set up the event on your computer (typing or pasting a list is easier there), then tap ••• and Open on my phone.',
-    'Point your phone camera at the code and tap the link. If you use RosterPulse from your Home Screen, open it there, tap Join with a code and type the 8 letters instead.',
-    'Your phone gets the whole event and stays in step with the computer: changes on either one show on the other. It needs a signal once; after that it works offline like any event.']],
+  ['Open an event on another device', [
+    'Set up the event where it is easiest (typing or pasting a list is easier on a computer), then tap ••• and Open on another device.',
+    'On the other phone or tablet, point the camera at the code and tap the link. On a computer, or if you use RosterPulse from your Home Screen, open RosterPulse there, tap Join with a code and type the 8 letters.',
+    'The other device gets the whole event and stays in step: changes on either one show on the other. It needs a signal once; after that it works offline like any event.']],
   ['Other organizers', [
     'After you share an event, Share sheet, Add an organizer makes a one-time 8-character code (with a QR code). The other organizer taps Join with a code on their phone or computer.',
     'Organizers see and change everything: scores, results, private notes, check-in and team decisions. Add as many as you need, one code each.',
