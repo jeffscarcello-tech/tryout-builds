@@ -60,7 +60,7 @@ with sync_playwright() as p:
     assert 'secret note' not in json.dumps(state(e1)), 'private notes stay off evaluator phones'
     e1.screenshot(path='test/multi-2-evaluator.png')
     e1.click('text=Start scoring'); e1.wait_for_selector('.keypad')
-    e1.locator('.key', has_text='4').click(); e1.wait_for_selector('.srow')
+    e1.locator('.key', has_text='4').click(); e1.locator('.key', has_text='Go').click(); e1.wait_for_selector('.srow')
     rows = e1.locator('.srow:has(.sbtns)')
     for i in range(3): rows.nth(i).locator('.sb').nth(3).click()
     wait_for(lambda: waiting(e1) == 0, 'e1 scores sent', 20)
@@ -70,7 +70,7 @@ with sync_playwright() as p:
     sheet(e2).locator('input.jinp').fill(code.lower()); sheet(e2).locator('input.inp').nth(1).fill('Coach B')
     sheet(e2).locator('button', has_text='Join').click(); e2.wait_for_selector('text=you are scoring as Coach B')
     c2.set_offline(True); e2.evaluate("window.dispatchEvent(new Event('offline'))")
-    e2.click('text=Start scoring'); e2.wait_for_selector('.keypad'); e2.locator('.key', has_text='7').click(); e2.wait_for_selector('.srow')
+    e2.click('text=Start scoring'); e2.wait_for_selector('.keypad'); e2.locator('.key', has_text='7').click(); e2.locator('.key', has_text='Go').click(); e2.wait_for_selector('.srow')
     rows = e2.locator('.srow:has(.sbtns)')
     for i in range(2): rows.nth(i).locator('.sb').nth(1).click()
     time.sleep(2.5); assert waiting(e2) == 2, 'scores wait while offline: %d' % waiting(e2)
@@ -107,7 +107,7 @@ with sync_playwright() as p:
     if org.locator('.sheet').count(): org.locator('.sheet button', has_text='Done').last.click()
     vidA0 = state(e1)['events'][0]['join']['vid']
     wait_for(lambda: (state(e1)['events'][0].get('stations') or {}).get(vidA0), 'station reached evaluator 1', 40)
-    e1.click('button[aria-label="Back"]'); e1.wait_for_selector('.keypad'); e1.locator('.key', has_text='9').click(); e1.wait_for_selector('.srow')
+    e1.click('button[aria-label="Back"]'); e1.wait_for_selector('.keypad'); e1.locator('.key', has_text='9').click(); e1.locator('.key', has_text='Go').click(); e1.wait_for_selector('.srow')
     assert e1.locator('.srow').count() == 1 and 'Passing' in e1.inner_text('main'), 'station: only Passing to score'
     e1.screenshot(path='test/multi-4a-station.png')
     e1.click('button[aria-label="Back"]'); e1.click('button[aria-label="Back"]'); e1.wait_for_selector('text=Start scoring')
@@ -184,7 +184,7 @@ with sync_playwright() as p:
     # remove evaluator 2
     org.click('text=Evaluators · ' + code); org.wait_for_selector('text=Coach B')
     sheet(org).locator('button[aria-label="Remove Coach B"]').click(); org.locator('.sheet button', has_text='Remove').last.click(); time.sleep(1)
-    e2.click('text=Start scoring'); e2.wait_for_selector('.keypad'); e2.locator('.key', has_text='9').click(); e2.wait_for_selector('.srow')
+    e2.click('text=Start scoring'); e2.wait_for_selector('.keypad'); e2.locator('.key', has_text='9').click(); e2.locator('.key', has_text='Go').click(); e2.wait_for_selector('.srow')
     e2.locator('.srow:has(.sbtns)').nth(0).locator('.sb').nth(2).click()
     e2.click('button[aria-label="Back"]'); e2.click('button[aria-label="Back"]')
     wait_for(lambda: 'Removed by organizer' in e2.inner_text('body'), 'evaluator 2 told they were removed', 40)

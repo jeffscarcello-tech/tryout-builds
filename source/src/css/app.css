@@ -294,3 +294,16 @@ button.bar-row.tapable:active{border-color:var(--accent)}
 .finishbtn{border-color:rgba(80,200,120,.5);color:var(--good)}.finishbtn svg{color:var(--good)}
 
 .hero .tagline{color:var(--accent);font-weight:800;font-size:17px;margin:2px 0 6px;letter-spacing:-.01em}
+
+/* t27: By number keypad with Go and a big no-match warning */
+.numclr{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--panel2);border:1px solid var(--line2);color:var(--muted)}
+.key.go{background:var(--accent);border-color:transparent;color:#1c0d00;font-size:22px}
+.key.go.off{opacity:.45}
+.key.fn{font-size:22px}
+.prow2.exact{border-color:color-mix(in srgb,var(--accent) 55%,var(--line))}
+.nomatch{display:flex;gap:14px;align-items:flex-start;margin-top:10px;padding:16px;border-radius:16px;background:rgba(255,80,80,.12);border:2px solid rgba(255,90,90,.6);animation:nmshake .35s}
+.nomatch .nmic{flex:none;width:44px;height:44px;border-radius:50%;background:var(--bad);color:#fff;font-size:26px;font-weight:900;display:grid;place-items:center}
+.nomatch .nmt{font-size:22px;font-weight:900;color:var(--bad);line-height:1.15}
+.nomatch .nms{font-size:15px;font-weight:600;margin-top:3px}
+@keyframes nmshake{0%,100%{transform:none}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+@media (prefers-reduced-motion:reduce){.nomatch{animation:none}}

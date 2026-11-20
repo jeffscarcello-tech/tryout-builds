@@ -70,10 +70,18 @@ def run(p, name, vp, mobile):
     sheet().locator('.item', has_text='Group A').click(); pg.wait_for_selector('.keypad')
     assert pg.locator('.prow2').count() == 0, 'number mode shows only the keypad'
     shot('8-numbers')
-    pg.locator('.key', has_text='9').click(); pg.wait_for_selector('.numshow.bad')   # nobody is #9
-    pg.locator('.key', has_text='C').click(); pg.locator('.key', has_text='1').click()
-    assert pg.locator('.matchbox .prow2').count() == 0 and not pg.locator('.numshow.bad').count(), '1 is a prefix of 12 and 14'
-    pg.locator('.key', has_text='C').click(); pg.locator('.key', has_text='7').click()
+    pg.locator('.key', has_text='9').click(); pg.wait_for_selector('.numshow.bad'); pg.wait_for_selector('.nomatch')   # nobody is #9: big warning at once
+    assert 'No #9' in pg.inner_text('.nomatch'); shot('8b-nomatch')
+    pg.locator('.numclr').click(); pg.locator('.key', has_text='1').click()
+    assert pg.locator('.matchbox .prow2').count() == 2 and not pg.locator('.numshow.bad').count(), '1 is a prefix of 12 and 14: both shown, nothing opens'
+    assert pg.locator('.keypad').count() == 1
+    pg.locator('.key', has_text='Go').click(); pg.wait_for_selector('.nomatch'); assert 'No #1' in pg.inner_text('.nomatch'), 'Go with no #1 warns'
+    pg.locator('.key', has_text='4').click(); assert not pg.locator('.nomatch').count()
+    assert pg.locator('.matchbox .prow2.exact').count() == 1 and 'Mia R' in pg.inner_text('.matchbox'), '#14 shown, not opened'
+    pg.locator('.numclr').click(); pg.locator('.key', has_text='3').click(); pg.wait_for_selector('.nomatch')
+    assert 'No #3 in Group A' in pg.inner_text('.nomatch') and 'is in Group B' in pg.inner_text('.nomatch') and pg.locator('.nomatch button', has_text='anyway').count() == 1
+    pg.keyboard.press('Escape'); pg.keyboard.press('7'); time.sleep(0.2); assert pg.locator('.keypad').count() == 1, 'typing does not jump'
+    pg.keyboard.press('Enter')   # a keyboard's Enter works like Go
     pg.wait_for_selector('.srow'); assert 'Jordan P' in pg.inner_text('header')
     rows = pg.locator('.srow:has(.sbtns)'); nrows = rows.count(); assert nrows == 10, nrows
     for i in range(nrows): rows.nth(i).locator('.sb').nth(i % 10).click()

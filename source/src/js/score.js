@@ -117,7 +117,13 @@ async function startScoring(ev) {
 }
 
 /* ---------------- pick a player: by number (keypad) or by name (full list) ---------------- */
-let typed = '';
+let typed = '', numMiss = '', kpPress = null;
+// a keyboard on a computer or tablet: digits, Backspace, Escape and Enter work on the By number screen
+document.addEventListener('keydown', e => {
+  if (!kpPress || !document.querySelector('.keypad') || sheetStack.length || /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '') || e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = /^\d$/.test(e.key) ? e.key : e.key === 'Backspace' ? '⌫' : e.key === 'Escape' ? 'C' : e.key === 'Enter' ? 'Go' : null;
+  if (k) { e.preventDefault(); kpPress(k); }
+});
 function viewScoreList(evId, sid, gid) {
   const ev = eventById(evId);
   if (!ev) return [topBar('Not found', 'home'), h('main', { class: 'page' }, h('div', { class: 'empty' }, 'That event is not on this phone.'))];
@@ -126,24 +132,43 @@ function viewScoreList(evId, sid, gid) {
   const g = ev.groups.find(x => x.id === gid), all = groupPlayers(ev, g ? g.id : 'all');
   const ci = checkinFor(ev, sid), list = all.filter(ci.isHere), away = all.filter(p => !ci.isHere(p));
   const by = ['name', 'skill'].includes(S.settings.pickBy) ? S.settings.pickBy : 'number';
-  const open = p => { typed = ''; go('s', ev.id, sid, gid, p.id); };
+  const open = p => { typed = ''; numMiss = ''; go('s', ev.id, sid, gid, p.id); };
   const done = list.filter(p => { const pr = progressOf(ev, p, sid); return pr.all && pr.done === pr.all; }).length;   // of those here
   const status = p => { const pr = progressOf(ev, p, sid); return pr.all && pr.done === pr.all ? h('span', { class: 'pbadge full' }, 'Done') : pr.done ? h('span', { class: 'pbadge' }, pr.done + '/' + pr.all) : null; };
   let body;
   if (by === 'skill') body = scoreBySkill(ev, sid, list, away);
   else if (by === 'number') {
-    const matches = typed ? all.filter(p => p.num === typed) : [];
-    const anyStart = !typed || all.some(p => p.num.startsWith(typed));
+    // t27: no jumping to a player while typing (4 might be the start of 44). Tap Go (or Enter on a keyboard) to open.
+    const startsWith = typed ? all.filter(p => p.num && p.num.startsWith(typed)).sort((a, b) => (a.num === typed ? 0 : 1) - (b.num === typed ? 0 : 1) || a.num.length - b.num.length || a.num.localeCompare(b.num)) : [];
+    const exact = startsWith.filter(p => p.num === typed);
+    const impossible = typed && !startsWith.length;
+    const showMiss = typed && (impossible || (numMiss === typed && !exact.length));
+    const elsewhere = showMiss && g ? ev.players.filter(p => p.num === typed && !all.includes(p) && (!myGroups(ev) || myGroups(ev).includes(p.group))) : [];
+    const goNow = () => {
+      if (!typed) return;
+      if (exact.length === 1) { open(exact[0]); return; }
+      numMiss = typed; render();
+      if (!exact.length && navigator.vibrate) navigator.vibrate(120);
+    };
+    const press = k => {
+      if (k === 'Go') { goNow(); return; }
+      if (k === 'C') typed = ''; else if (k === '⌫') typed = typed.slice(0, -1); else if (typed.length < 3) typed += k;
+      numMiss = ''; render();
+    };
+    kpPress = press;
+    const rowOf = p => h('button', { class: 'prow2' + (p.num === typed ? ' exact' : ''), onclick: () => open(p) }, h('span', { class: 'jn' }, p.num), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, p.name || 'No name'), h('div', { class: 'pmeta' }, [p.pos, p.div, ci.isHere(p) ? null : 'not checked in'].filter(Boolean).join(' · ') || ' ')), status(p), icon('chev'));
     body = [
-      h('div', { class: 'numshow' + (typed && !anyStart ? ' bad' : '') }, typed ? '#' + typed : 'Type a number'),
-      h('div', { class: 'matchbox' }, typed && !anyStart ? h('p', { class: 'note' }, 'No ' + W.player + ' has that number' + (g ? ' in ' + g.name : '') + '.') : null,
-        matches.map(p => h('button', { class: 'prow2', onclick: () => open(p) }, h('span', { class: 'jn' }, p.num), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, p.name || 'No name'), h('div', { class: 'pmeta' }, [p.pos, p.div, ci.isHere(p) ? null : 'not checked in'].filter(Boolean).join(' · ') || ' ')), status(p), icon('chev')))),
-      h('div', { class: 'keypad' }, ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map(k => h('button', { class: 'key' + (/\d/.test(k) ? '' : ' fn'), onclick: () => {
-        if (k === 'C') typed = ''; else if (k === '⌫') typed = typed.slice(0, -1); else if (typed.length < 3) typed += k;
-        const exact = all.filter(p => p.num === typed), longer = all.some(p => p.num !== typed && p.num.startsWith(typed));
-        if (exact.length === 1 && !longer) { open(exact[0]); return; }
-        render();
-      } }, k)))];
+      h('div', { class: 'numshow' + (showMiss ? ' bad' : '') }, h('span', null, typed ? '#' + typed : 'Type a number'),
+        typed ? h('button', { class: 'numclr', 'aria-label': 'Clear', onclick: () => press('C') }, icon('x')) : null),
+      showMiss ? h('div', { class: 'nomatch', role: 'alert' },
+        h('div', { class: 'nmic' }, '!'),
+        h('div', { class: 'grow' },
+          h('div', { class: 'nmt' }, 'No #' + typed + (g ? ' in ' + g.name : '')),
+          h('div', { class: 'nms' }, elsewhere.length ? '#' + typed + ' is in ' + (ev.groups.find(x => x.id === elsewhere[0].group) || { name: 'another group' }).name + '.' : 'Nobody has that number. Check the jersey and try again.'),
+          elsewhere.length ? h('button', { class: 'btn sm', style: 'margin-top:8px', onclick: () => open(elsewhere[0]) }, 'Score ' + (elsewhere[0].name || '#' + typed) + ' anyway') : null)) : null,
+      h('div', { class: 'matchbox' }, showMiss ? null : startsWith.slice(0, 4).map(rowOf),
+        !showMiss && exact.length > 1 ? h('p', { class: 'note' }, exact.length + ' ' + W.players + ' have #' + typed + '. Tap the right one.') : null),
+      h('div', { class: 'keypad' }, ['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', 'Go'].map(k => h('button', { class: 'key' + (k === 'Go' ? ' go' + (typed ? '' : ' off') : /\d/.test(k) ? '' : ' fn'), 'aria-label': k === '⌫' ? 'Delete' : k === 'Go' ? 'Go' : null, onclick: () => press(k) }, k)))];
   } else {
     const az = l => l.slice().sort((a, b) => (a.name || '~').localeCompare(b.name || '~') || (parseInt(a.num, 10) || 0) - (parseInt(b.num, 10) || 0));
     const rowOf = p => h('button', { class: 'prow2' + (ci.isHere(p) ? '' : ' out'), onclick: () => open(p) },
@@ -154,7 +179,7 @@ function viewScoreList(evId, sid, gid) {
   return [topBar((g ? g.name : 'Everyone') + (ev.sessions.length > 1 ? ' · ' + day.name : ''), ['e', ev.id, 'players']),
     h('div', { class: 'subtabs' }, h('div', { class: 'seg' }, [['number', 'By number'], ['name', 'By name'], ['skill', 'By skill']].map(([k, l]) => h('button', { class: by === k ? 'on' : '', onclick: () => { S.settings.pickBy = k; typed = ''; save(); render(); } }, l)))),
     h('main', { class: 'page' },
-      tip('scorelist', by === 'number' ? 'Type a jersey number. The ' + W.player + ' opens as soon as the number is unique.' : by === 'name' ? 'Tap a name to score. Done and 4/9 show how far you are.' : 'One skill at a time for every ' + W.player + '. Use the menu or the arrows to change skill.'),
+      tip('scorelist', by === 'number' ? 'Type a jersey number and tap Go, or tap the name as it shows.' : by === 'name' ? 'Tap a name to score. Done and 4/9 show how far you are.' : 'One skill at a time for every ' + W.player + '. Use the menu or the arrows to change skill.'),
       h('div', { class: 'row', style: 'margin:-4px 0 12px' }, h('div', { class: 'pmeta grow' }, 'Scoring as ' + myName(ev)), by === 'skill' ? null : h('span', { class: 'cnt' }, done + ' of ' + list.length + ' done')),
       ci.used && away.length && by !== 'name' ? h('p', { class: 'note', style: 'margin:-6px 0 10px' }, away.length + ' not checked in' + (by === 'skill' ? ' (at the bottom)' : '') + '.') : null,
       body,
