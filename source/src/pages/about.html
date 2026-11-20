@@ -2,125 +2,225 @@
 <meta name="description" content="Run tryouts and camps from your phone. Coaches score players by jersey number, scores combine live, and you get a ranked list and player cards. Made for your sport.">
 <meta name="theme-color" content="#0b0b0e"><link rel="icon" href="/icon.svg"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta property="og:title" content="RosterPulse"><meta property="og:description" content="Keep your finger on the pulse of every tryout. Tryouts and camps, scored from every coach's phone."><meta property="og:image" content="/icon-512.png">
+<script>document.documentElement.classList.add('js')</script>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#0b0b0e;color:#f2f2f5;font:17px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Arial,sans-serif}
+:root{--o:#ff8a1f;--o2:#ffa04a;--bg:#0b0b0e;--card:#141419;--line:#26262f;--mut:#a9a9b5;--blue:#3b8bff}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:#f2f2f5;font:17px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Arial,sans-serif;overflow-x:hidden}
 a{color:inherit}
-.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
-header{display:flex;align-items:center;justify-content:space-between;padding:18px 0}
-.brand{display:flex;align-items:center;gap:10px;font-weight:900;font-size:21px;text-decoration:none;letter-spacing:-.02em}.brand img{width:32px;height:32px}.brand b{color:#ff8a1f}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:17px;padding:14px 22px;border-radius:14px;text-decoration:none;border:1px solid #3a3a46;color:#fff;background:#17171c}
-.btn.p{background:linear-gradient(180deg,#ffa04a,#ff8a1f);border-color:transparent;color:#1c0d00;box-shadow:0 8px 28px rgba(255,138,31,.25)}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px;position:relative}
+/* header */
+.top{position:sticky;top:0;z-index:20;background:rgba(11,11,14,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,255,255,.05)}
+header{display:flex;align-items:center;justify-content:space-between;padding:12px 0}
+.brand{display:flex;align-items:center;gap:10px;font-weight:900;font-size:21px;text-decoration:none;letter-spacing:-.02em}.brand img{width:32px;height:32px}.brand b{color:var(--o)}
+.nav{display:flex;align-items:center;gap:18px}.nav a.l{color:#c4c4cf;text-decoration:none;font-weight:700;font-size:15px}.nav a.l:hover{color:#fff}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:17px;padding:14px 22px;border-radius:14px;text-decoration:none;border:1px solid #3a3a46;color:#fff;background:#17171c;transition:transform .15s,box-shadow .15s,background .15s}
+.btn:hover{transform:translateY(-2px);background:#1e1e25}
+.btn.p{background:linear-gradient(180deg,var(--o2),var(--o));border-color:transparent;color:#1c0d00;box-shadow:0 10px 30px rgba(255,138,31,.32)}
+.btn.p:hover{box-shadow:0 14px 40px rgba(255,138,31,.45)}
 .btn.sm{padding:9px 14px;font-size:15px;border-radius:12px}
-.hero{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center;padding:40px 0 50px}
-h1{font-size:clamp(36px,6vw,60px);line-height:1.02;letter-spacing:-.035em;margin:0 0 16px;font-weight:900}
-.welcome{text-align:center;padding:34px 0 30px;border-bottom:1px solid #1f1f26;position:relative}
-.welcome h1,.welcome p{position:relative;z-index:1}
-.wglow{position:relative;margin:0 auto 26px;width:150px}
-.wglow:before{content:'';position:absolute;left:50%;top:58%;width:min(760px,150vw);height:420px;transform:translate(-50%,-50%);background:radial-gradient(closest-side,rgba(255,138,31,.32),rgba(255,138,31,.12) 45%,rgba(255,138,31,0) 100%);pointer-events:none;z-index:0}
-.wlogo{position:relative;z-index:1;width:150px;height:152px;display:block}
-body{overflow-x:hidden}
-.welcome .tagline{font-size:clamp(19px,3.2vw,26px);font-weight:800;color:#ff8a1f;margin:0 0 10px;letter-spacing:-.01em}
-.welcome h1{font-size:clamp(40px,8vw,76px);margin:0 0 12px}.welcome h1 span{white-space:nowrap}.welcome h1 b{color:#ff8a1f}
-.welcome p{margin:0 auto;color:#c4c4cf;font-size:clamp(18px,2.6vw,22px);max-width:30em}
-.ht{font-size:clamp(30px,4.6vw,46px);line-height:1.05;letter-spacing:-.03em;margin:0 0 16px;font-weight:900}
-.ht em{font-style:normal;color:#ff8a1f}
-.lead{font-size:19px;color:#c4c4cf;margin:0 0 24px;max-width:34em}
-.ctas{display:flex;gap:10px;flex-wrap:wrap}.small{color:#8d8d99;font-size:14px;margin-top:12px}
-/* phone mock */
-.phone{background:#121216;border:1px solid #2c2c36;border-radius:34px;padding:16px;max-width:330px;margin:0 auto;box-shadow:0 30px 80px rgba(0,0,0,.5)}
-.ph-top{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:15px;margin:2px 4px 12px}.pill{font-size:11px;font-weight:800;border:1px solid #3a3a46;border-radius:99px;padding:3px 9px;color:#9fe2b6}
-.rrow{display:flex;align-items:center;gap:10px;background:#1a1a20;border:1px solid #2a2a33;border-radius:14px;padding:9px 11px;margin:7px 0;font-size:14px}
-.jn{min-width:32px;height:32px;border-radius:10px;background:#26262e;display:grid;place-items:center;font-weight:900}
-.rk{width:16px;color:#8d8d99;font-weight:700;font-size:13px}.nm{flex:1;font-weight:700}.nm span{display:block;color:#8d8d99;font-weight:500;font-size:12px}
-.sc{text-align:right;font-weight:900;font-size:17px}.sc span{display:block;color:#8d8d99;font-size:11px;font-weight:600}
-.line{border-top:2px dashed #ff8a1f;margin:10px 4px;position:relative}.line i{position:absolute;right:0;top:-10px;background:#121216;color:#ff8a1f;font-size:11px;font-weight:800;font-style:normal;padding:0 6px}
-section{padding:46px 0;border-top:1px solid #1f1f26}
-h2{font-size:clamp(26px,4vw,36px);letter-spacing:-.025em;margin:0 0 10px;line-height:1.1}
-.sub{color:#a9a9b5;margin:0 0 26px;max-width:40em}
-.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-.card{background:#141419;border:1px solid #2a2a33;border-radius:18px;padding:20px}
-.card .n{width:34px;height:34px;border-radius:11px;background:rgba(255,138,31,.15);color:#ff8a1f;font-weight:900;display:grid;place-items:center;margin-bottom:10px}
-.card h3{margin:0 0 6px;font-size:19px}.card p{margin:0;color:#b4b4bf;font-size:16px}
-.sports{display:flex;flex-wrap:wrap;gap:8px}.sports span{border:1px solid #33333d;background:#16161b;border-radius:99px;padding:8px 14px;font-weight:700;font-size:15px}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-.feat h3{font-size:17px;margin:0 0 4px}.feat p{margin:0;color:#a9a9b5;font-size:15px}
-.feat{border-left:3px solid #ff8a1f;padding:2px 0 2px 14px}
-.maker{margin:16px 0 0;font-size:14px;color:#8d8d99}.maker a{color:#c4c4cf;text-decoration:none;font-weight:800}.maker b{color:#3b8bff}
-.sp{border:1px solid #2a2a33;border-radius:22px;padding:26px;display:flex;gap:24px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:linear-gradient(135deg,rgba(59,139,255,.12),rgba(59,139,255,.02))}
-.sp h2{margin:4px 0 8px}.sp h2 b{color:#3b8bff}.sp p{margin:0;color:#c4c4cf;max-width:38em}.sp-k{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#7fb0ff}
-.band{background:linear-gradient(135deg,rgba(255,138,31,.14),rgba(255,138,31,.03));border:1px solid rgba(255,138,31,.3);border-radius:22px;padding:28px;display:flex;gap:24px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-.band h2{margin:0 0 6px}.band p{margin:0;color:#c4c4cf}
-footer{padding:30px 0 50px;color:#8d8d99;font-size:14px;display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between;border-top:1px solid #1f1f26}
+.btn svg{width:18px;height:18px}
+/* hero */
+.heroband{position:relative;overflow:hidden}
+.heroband:before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:44px 44px;-webkit-mask-image:radial-gradient(ellipse 70% 60% at 50% 35%,#000 30%,transparent 75%);mask-image:radial-gradient(ellipse 70% 60% at 50% 35%,#000 30%,transparent 75%);pointer-events:none}
+.heroband:after{content:'';position:absolute;left:50%;top:-180px;width:1100px;height:760px;transform:translateX(-50%);background:radial-gradient(closest-side,rgba(255,138,31,.24),rgba(255,138,31,.08) 50%,transparent);pointer-events:none}
+.pulsebg{position:absolute;left:0;right:0;top:56%;height:120px;width:100%;opacity:.22;pointer-events:none;z-index:0}
+.pulsebg path{fill:none;stroke:var(--o);stroke-width:3;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:2400;stroke-dashoffset:2400;animation:draw 3.2s ease-out .2s forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.hero{position:relative;z-index:1;display:grid;grid-template-columns:1.05fr .95fr;gap:36px;align-items:center;padding:48px 0 64px}
+.welcome{position:relative}
+.wglow{position:relative;width:104px;margin:0 0 18px}
+.wglow:before{content:'';position:absolute;left:50%;top:55%;width:340px;height:260px;transform:translate(-50%,-50%);background:radial-gradient(closest-side,rgba(255,138,31,.38),transparent);pointer-events:none}
+.wlogo{position:relative;width:104px;height:106px;display:block;animation:beat 2.8s ease-in-out infinite}
+@keyframes beat{0%,100%{transform:scale(1)}8%{transform:scale(1.06)}16%{transform:scale(1)}24%{transform:scale(1.04)}32%{transform:scale(1)}}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:800;letter-spacing:.04em;color:#ffd2a8;background:rgba(255,138,31,.12);border:1px solid rgba(255,138,31,.35);border-radius:99px;padding:6px 12px;margin:0 0 16px}
+.eyebrow i{width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 0 rgba(74,222,128,.6);animation:ping 1.8s infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(74,222,128,.55)}80%,100%{box-shadow:0 0 0 9px rgba(74,222,128,0)}}
+h1{font-size:clamp(42px,6.6vw,74px);line-height:.98;letter-spacing:-.04em;margin:0 0 14px;font-weight:900}
+h1 span{white-space:nowrap}h1 b{background:linear-gradient(90deg,var(--o2),var(--o) 60%,#ff6a3d);-webkit-background-clip:text;background-clip:text;color:transparent}
+.welcome .tagline{font-size:clamp(20px,2.6vw,26px);font-weight:800;color:var(--o);margin:0 0 16px;letter-spacing:-.01em}
+.ht{font-size:clamp(19px,2.2vw,22px);line-height:1.4;font-weight:600;color:#d6d6de;margin:0 0 26px;max-width:32em}
+.ht em{font-style:normal;color:#fff;font-weight:800}
+.ctas{display:flex;gap:10px;flex-wrap:wrap}
+.trust{display:flex;flex-wrap:wrap;gap:8px 18px;margin:22px 0 0;padding:0;list-style:none;color:#c4c4cf;font-size:15px;font-weight:600}
+.trust li{display:flex;align-items:center;gap:7px}.trust svg{width:17px;height:17px;color:#4ade80;flex:none}
+.maker{margin:18px 0 0;font-size:14px;color:#8d8d99}.maker a{color:#c4c4cf;text-decoration:none;font-weight:800}.maker b{color:var(--blue)}
+/* phones */
+.stage{position:relative;height:560px}
+.phone{position:absolute;width:290px;background:#121216;border:1px solid #2c2c36;border-radius:36px;padding:14px;box-shadow:0 40px 90px rgba(0,0,0,.6),0 0 0 6px #18181d,0 0 0 7px #2a2a33}
+.phone:before{content:'';display:block;width:84px;height:20px;border-radius:99px;background:#050506;margin:0 auto 12px}
+.ph1{right:0;top:30px;transform:rotate(3deg);z-index:2}
+.ph2{left:0;top:110px;transform:rotate(-5deg);z-index:1;opacity:.96}
+.ph-top{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:14px;margin:0 4px 10px}.pill{font-size:11px;font-weight:800;border:1px solid #2f5e3e;background:rgba(74,222,128,.08);border-radius:99px;padding:3px 9px;color:#86efac}
+.rrow{display:flex;align-items:center;gap:9px;background:#1a1a20;border:1px solid #2a2a33;border-radius:14px;padding:8px 10px;margin:6px 0;font-size:13.5px}
+.rrow.hl{border-color:rgba(255,138,31,.5);background:linear-gradient(90deg,rgba(255,138,31,.14),#1a1a20)}
+.jn{min-width:30px;height:30px;border-radius:9px;background:#26262e;display:grid;place-items:center;font-weight:900}
+.rk{width:14px;color:#8d8d99;font-weight:700;font-size:12px}.nm{flex:1;font-weight:700}.nm span{display:block;color:#8d8d99;font-weight:500;font-size:11.5px}
+.sc{text-align:right;font-weight:900;font-size:16px}.sc span{display:block;color:#8d8d99;font-size:10.5px;font-weight:600}
+.line{border-top:2px dashed var(--o);margin:10px 4px;position:relative}.line i{position:absolute;right:0;top:-10px;background:#121216;color:var(--o);font-size:10.5px;font-weight:800;font-style:normal;padding:0 6px}
+.who{display:flex;align-items:center;gap:10px;margin:2px 4px 12px}.who .jn{min-width:40px;height:40px;font-size:17px;background:rgba(255,138,31,.16);color:var(--o)}.who b{display:block;font-size:15px}.who span{font-size:12px;color:#8d8d99}
+.sk{margin:0 4px 11px}.sk .sl{font-size:12.5px;font-weight:700;color:#c4c4cf;margin-bottom:5px;display:flex;justify-content:space-between}.sk .sl small{color:#8d8d99;font-weight:600}
+.sb{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}.sb span{height:32px;border-radius:9px;background:#1f1f26;border:1px solid #2c2c36;display:grid;place-items:center;font-weight:800;font-size:13px;color:#c4c4cf}
+.sb span.on{background:linear-gradient(180deg,var(--o2),var(--o));color:#1c0d00;border-color:transparent;box-shadow:0 4px 14px rgba(255,138,31,.35)}
+.nextb{margin:6px 4px 2px;height:38px;border-radius:12px;background:linear-gradient(180deg,var(--o2),var(--o));color:#1c0d00;font-weight:900;font-size:14px;display:grid;place-items:center}
+.float{position:absolute;z-index:3;background:rgba(24,24,30,.92);backdrop-filter:blur(8px);border:1px solid #33333d;border-radius:14px;padding:10px 13px;font-size:13px;font-weight:700;box-shadow:0 14px 40px rgba(0,0,0,.45);display:flex;align-items:center;gap:9px;animation:bob 5s ease-in-out infinite}
+.float i{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-style:normal;font-size:14px}
+.float small{display:block;color:#8d8d99;font-weight:600;font-size:11.5px}
+.f1{left:-6px;top:24px}.f1 i{background:rgba(74,222,128,.16);color:#4ade80}
+.f2{right:-10px;bottom:36px;animation-delay:-2.5s}.f2 i{background:rgba(255,138,31,.18);color:var(--o)}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:22px;overflow:hidden;margin:0 0 10px;position:relative;z-index:1}
+.stats div{background:#101014;padding:22px 18px;text-align:center}
+.stats b{display:block;font-size:clamp(28px,4vw,40px);font-weight:900;letter-spacing:-.03em;background:linear-gradient(180deg,#fff,#c9c9d3);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stats b em{font-style:normal;background:linear-gradient(90deg,var(--o2),var(--o));-webkit-background-clip:text;background-clip:text;color:transparent}
+.stats span{color:var(--mut);font-size:14px;font-weight:600}
+/* sections */
+section{padding:64px 0}
+.kick{display:inline-block;font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--o);margin-bottom:8px}
+h2{font-size:clamp(28px,4.2vw,42px);letter-spacing:-.03em;margin:0 0 10px;line-height:1.08}
+.sub{color:var(--mut);margin:0 0 30px;max-width:40em;font-size:18px}
+.center{text-align:center}.center .sub{margin-left:auto;margin-right:auto}
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;position:relative}
+.steps:before{content:'';position:absolute;left:12%;right:12%;top:38px;border-top:2px dashed rgba(255,138,31,.35);z-index:0}
+.step{position:relative;z-index:1;background:linear-gradient(180deg,#17171d,#121216);border:1px solid var(--line);border-radius:22px;padding:24px;transition:transform .2s,border-color .2s}
+.step:hover{transform:translateY(-4px);border-color:rgba(255,138,31,.45)}
+.step .n{width:56px;height:56px;border-radius:18px;background:linear-gradient(180deg,var(--o2),var(--o));color:#1c0d00;font-weight:900;font-size:24px;display:grid;place-items:center;margin-bottom:16px;box-shadow:0 10px 26px rgba(255,138,31,.3)}
+.step h3{margin:0 0 6px;font-size:21px}.step p{margin:0;color:#b4b4bf;font-size:16px}
+/* sports */
+.sports{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.sports span{display:inline-flex;align-items:center;gap:8px;border:1px solid #33333d;background:#16161b;border-radius:99px;padding:10px 16px;font-weight:700;font-size:16px;transition:transform .15s,border-color .15s,background .15s}
+.sports span:hover{transform:translateY(-3px);border-color:var(--o);background:#1d1a17}
+.sports span i{font-style:normal;font-size:19px;line-height:1}
+/* features */
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.feat{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;transition:transform .2s,border-color .2s,background .2s}
+.feat:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--c) 55%,var(--line));background:color-mix(in srgb,var(--c) 6%,var(--card))}
+.feat .ic{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;margin-bottom:12px;color:var(--c);background:color-mix(in srgb,var(--c) 16%,transparent);border:1px solid color-mix(in srgb,var(--c) 40%,transparent)}
+.feat .ic svg{width:22px;height:22px}
+.feat h3{font-size:17px;margin:0 0 4px}.feat p{margin:0;color:var(--mut);font-size:15px}
+/* shotpulse, privacy, cta */
+.sp{border:1px solid rgba(59,139,255,.3);border-radius:26px;padding:30px;display:flex;gap:24px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:radial-gradient(ellipse at top left,rgba(59,139,255,.2),rgba(59,139,255,.03) 60%)}
+.sp h2{margin:4px 0 8px}.sp h2 b{color:var(--blue)}.sp p{margin:0;color:#c4c4cf;max-width:38em}.sp-k{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#7fb0ff}
+.priv{display:grid;grid-template-columns:auto 1fr;gap:22px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:26px;padding:28px}
+.shield{width:72px;height:72px;border-radius:22px;display:grid;place-items:center;background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.35);color:#4ade80}.shield svg{width:36px;height:36px}
+.priv h2{margin:0 0 6px;font-size:clamp(24px,3.4vw,32px)}.priv p{margin:0;color:#c4c4cf}.priv a{color:#fff;font-weight:700}
+.final{position:relative;overflow:hidden;text-align:center;border-radius:30px;padding:56px 24px;background:radial-gradient(ellipse at 50% 0%,rgba(255,138,31,.35),rgba(255,138,31,.06) 60%),#121216;border:1px solid rgba(255,138,31,.35)}
+.final h2{font-size:clamp(30px,5vw,48px);margin:0 0 10px}.final p{color:#d6d6de;margin:0 auto 24px;max-width:32em;font-size:18px}.final .ctas{justify-content:center;position:relative;z-index:1}
+.final svg.fp{pointer-events:none;position:absolute;left:0;right:0;bottom:18px;width:100%;height:70px;opacity:.28}.final svg.fp path{fill:none;stroke:var(--o);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+footer{padding:30px 0 50px;color:#8d8d99;font-size:14px;display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between;border-top:1px solid #1f1f26;margin-top:40px}
 footer a{color:#c4c4cf}
-footer a.spname{color:#fff;font-weight:800;text-decoration:none}footer a.spname b{color:#3b8bff}
-@media (max-width:820px){.hero{grid-template-columns:1fr;padding-top:16px}.steps,.grid{grid-template-columns:1fr}.phone{max-width:300px}}
+footer a.spname{color:#fff;font-weight:800;text-decoration:none}footer a.spname b{color:var(--blue)}
+/* reveal on scroll (only when JS runs) */
+.js .rv{opacity:0;transform:translateY(22px);transition:opacity .7s ease,transform .7s ease}
+.js .rv.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.js .rv{opacity:1;transform:none}.pulsebg path{stroke-dashoffset:0}html{scroll-behavior:auto}}
+@media (max-width:900px){
+  .hero{grid-template-columns:1fr;padding:26px 0 40px;text-align:center}
+  .wglow{margin:0 auto 16px}.ctas .btn{min-width:230px}.ht{margin-left:auto;margin-right:auto}.ctas{justify-content:center}.trust{justify-content:center}
+  .stage{height:auto;max-width:400px;margin:0 auto;width:100%;padding:34px 0 30px;text-align:left}
+  .ph2{display:none}.ph1{position:relative;right:auto;top:0;width:280px;margin:0 auto;transform:rotate(2deg)}
+  .f1{left:0;top:0}.f2{right:0;bottom:8px}
+  .stats b{font-size:24px;white-space:nowrap}.stats div{padding:18px 8px}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .steps,.grid{grid-template-columns:1fr}.steps:before{display:none}
+  .nav a.l{display:none}
+  .priv{grid-template-columns:1fr;text-align:center}.shield{margin:0 auto}
+  section{padding:48px 0}
+}
+@media (min-width:600px) and (max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
 </style></head><body>
-<div class="wrap">
-<header><a class="brand" href="/about"><img src="/mark.svg" alt=""><span>Roster<b>Pulse</b></span></a><a class="btn sm" href="/">Open the app</a></header>
+<div class="top"><div class="wrap"><header><a class="brand" href="/about"><img src="/mark.svg" alt=""><span>Roster<b>Pulse</b></span></a>
+<nav class="nav"><a class="l" href="#how">How it works</a><a class="l" href="#features">Features</a><a class="btn sm" href="/">Open the app</a></nav></header></div></div>
 
+<div class="heroband">
+<svg class="pulsebg" viewBox="0 0 1600 120" preserveAspectRatio="none" aria-hidden="true"><path d="M0 70 H520 L560 70 L585 20 L615 110 L640 40 L660 70 H900 L930 70 L950 45 L975 95 L995 70 H1600"/></svg>
+<div class="wrap">
+<div class="hero">
 <div class="welcome">
-<div class="wglow"><img class="wlogo" src="/mark.svg" alt="RosterPulse logo" width="150" height="152"></div>
+<div class="wglow"><img class="wlogo" src="/mark.svg" alt="RosterPulse logo" width="104" height="106"></div>
+<div class="eyebrow"><i></i>Free while in testing · 13 sports</div>
 <h1>Welcome to <span>Roster<b>Pulse</b></span></h1>
 <p class="tagline">Keep your finger on the pulse of every tryout.</p>
-<p>Tryouts and camps for every team sport, made simple.</p>
-</div>
-
-<div class="hero">
-<div>
-<h2 class="ht">Tryouts and camps, scored from <em>every coach's phone</em>.</h2>
-<p class="lead">Load your roster, share a code with your coaches, and score players by jersey number. Scores combine as they come in, so the ranked list and player cards are ready when the last session ends.</p>
-<div class="ctas"><a class="btn p" href="/#/demo">Try the demo</a><a class="btn" href="/">Start an event</a></div>
-<p class="small">Free while in testing. Works in any phone browser; add it to your home screen like an app.</p>
+<h2 class="ht">Tryouts and camps, scored from <em>every coach's phone</em>. Share a code, score by jersey number, and the ranked list builds itself.</h2>
+<div class="ctas"><a class="btn p" href="/#/demo"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Try the demo</a><a class="btn" href="/">Start an event</a></div>
+<ul class="trust">
+<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>No accounts for coaches</li>
+<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Works with no signal</li>
+<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Kids' data stays private</li>
+</ul>
 <p class="maker">From the maker of <a href="https://shotpulse.app" target="_blank" rel="noopener">Shot<b>Pulse</b></a></p>
 </div>
-<div class="phone" aria-hidden="true">
+
+<div class="stage" aria-hidden="true">
+<div class="phone ph2">
+<div class="who"><span class="jn">7</span><div><b>Brooke L</b><span>Outside · Group A</span></div></div>
+<div class="sk"><div class="sl">Serving <small>4 = consistent, aimed</small></div><div class="sb"><span>1</span><span>2</span><span>3</span><span class="on">4</span><span>5</span></div></div>
+<div class="sk"><div class="sl">Passing</div><div class="sb"><span>1</span><span>2</span><span>3</span><span>4</span><span class="on">5</span></div></div>
+<div class="sk"><div class="sl">Attacking</div><div class="sb"><span>1</span><span>2</span><span>3</span><span class="on">4</span><span>5</span></div></div>
+<div class="sk"><div class="sl">Court awareness</div><div class="sb"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div></div>
+<div class="nextb">Next player →</div>
+</div>
+<div class="phone ph1">
 <div class="ph-top"><span>U15 tryouts · Results</span><span class="pill">● Live</span></div>
-<div class="rrow"><span class="rk">1</span><span class="jn">7</span><span class="nm">Brooke L<span>Outside · 3 coaches</span></span><span class="sc">4.6<span>92%</span></span></div>
+<div class="rrow hl"><span class="rk">1</span><span class="jn">7</span><span class="nm">Brooke L<span>Outside · 3 coaches</span></span><span class="sc">4.6<span>92%</span></span></div>
 <div class="rrow"><span class="rk">2</span><span class="jn">4</span><span class="nm">Ava M<span>Setter · 3 coaches</span></span><span class="sc">4.4<span>88%</span></span></div>
 <div class="rrow"><span class="rk">3</span><span class="jn">11</span><span class="nm">Dana K<span>Libero · 3 coaches</span></span><span class="sc">4.2<span>84%</span></span></div>
 <div class="line"><i>Team line · 3 spots</i></div>
 <div class="rrow"><span class="rk">4</span><span class="jn">15</span><span class="nm">Grace P<span>Middle · 2 coaches</span></span><span class="sc">3.9<span>78%</span></span></div>
 <div class="rrow"><span class="rk">5</span><span class="jn">2</span><span class="nm">Isla B<span>Outside · 2 coaches</span></span><span class="sc">3.7<span>74%</span></span></div>
+<div class="rrow"><span class="rk">6</span><span class="jn">9</span><span class="nm">Mia T<span>Opposite · 2 coaches</span></span><span class="sc">3.5<span>70%</span></span></div>
+</div>
+<div class="float f1"><i>✓</i><div>Coach Sam sent 12 scores<small>just now</small></div></div>
+<div class="float f2"><i>▲</i><div>#7 moved up to 1st<small>3 coaches agree</small></div></div>
 </div>
 </div>
 
-<section>
-<h2>How it works</h2>
-<p class="sub">Set up in minutes. Coaches need no account and no training.</p>
+<div class="stats rv">
+<div><b><em>2</em> taps</b><span>per score</span></div>
+<div><b><em>13</em> sports</b><span>ready to go, or your own</span></div>
+<div><b><em>0</em> accounts</b><span>needed by coaches</span></div>
+<div><b><em>Live</em></b><span>results as scores come in</span></div>
+</div>
+</div>
+</div>
+
+<div class="wrap">
+<section id="how">
+<div class="center rv"><span class="kick">How it works</span><h2>From sign-up sheet to team list</h2>
+<p class="sub">Set up in minutes. Coaches need no account and no training.</p></div>
 <div class="steps">
-<div class="card"><div class="n">1</div><h3>Set up</h3><p>Pick your sport and get its skills, positions and tests. Paste your roster from a spreadsheet. Split it into groups and days.</p></div>
-<div class="card"><div class="n">2</div><h3>Coaches score</h3><p>They scan a QR code, type their name, and tap a score per skill by jersey number. No signal in the gym? Scores send when it comes back.</p></div>
-<div class="card"><div class="n">3</div><h3>Pick your team</h3><p>A combined ranking with a movable team line, player cards with strengths and work-ons, side-by-side compare, and a PDF to print or email.</p></div>
+<div class="step rv"><div class="n">1</div><h3>Set up</h3><p>Pick your sport and get its skills, positions and tests. Paste your roster or open the Excel file. Split it into groups and days.</p></div>
+<div class="step rv"><div class="n">2</div><h3>Coaches score</h3><p>They scan a QR code, type their name, and tap a score per skill by jersey number. No signal in the gym? Scores send when it comes back.</p></div>
+<div class="step rv"><div class="n">3</div><h3>Pick your team</h3><p>A combined ranking with a movable team line, player cards with strengths and work-ons, and a PDF to print or email.</p></div>
 </div>
 </section>
 
 <section>
-<h2>Made for your sport</h2>
-<p class="sub">Every sport starts with its own words, skills, positions and tests. Change any of it, or start blank.</p>
-<div class="sports"><span>Volleyball</span><span>Basketball</span><span>Hockey</span><span>Soccer</span><span>Lacrosse</span><span>Ringette</span><span>Baseball</span><span>Softball</span><span>Football</span><span>Flag football</span><span>Rugby</span><span>Track and field</span><span>Swimming</span><span>Your own</span></div>
+<div class="center rv"><span class="kick">Made for your sport</span><h2>It speaks your sport</h2>
+<p class="sub">Every sport starts with its own words, skills, positions and tests. Change any of it, or start blank.</p></div>
+<div class="sports rv"><span><i>🏐</i>Volleyball</span><span><i>🏀</i>Basketball</span><span><i>🏒</i>Hockey</span><span><i>⚽</i>Soccer</span><span><i>🥍</i>Lacrosse</span><span><i>⛸️</i>Ringette</span><span><i>⚾</i>Baseball</span><span><i>🥎</i>Softball</span><span><i>🏈</i>Football</span><span><i>🚩</i>Flag football</span><span><i>🏉</i>Rugby</span><span><i>🏃</i>Track and field</span><span><i>🏊</i>Swimming</span><span><i>✏️</i>Your own</span></div>
 </section>
 
-<section>
-<h2>Everything a tryout needs</h2>
-<p class="sub">Simple on the court, detailed when you are picking the team.</p>
+<section id="features">
+<div class="center rv"><span class="kick">Features</span><h2>Everything a tryout needs</h2>
+<p class="sub">Simple on the court, detailed when you are picking the team.</p></div>
 <div class="grid">
-<div class="feat"><h3>Score your way</h3><p>By jersey number, by name, or one skill across every player. 1 to 5, 1 to 10, + ✓ −, or your own scale up to 1 to 1000.</p></div>
-<div class="feat"><h3>Check-in</h3><p>Mark players as they arrive. No-shows drop to the bottom and are skipped while scoring.</p></div>
-<div class="feat"><h3>Groups and coaches</h3><p>Give each coach their groups. See who still needs scoring by whom.</p></div>
-<div class="feat"><h3>Several days</h3><p>Average the days, add them up, or carry each score forward.</p></div>
-<div class="feat"><h3>Notes on every skill</h3><p>A quick note beside any score, plus an overall note per player.</p></div>
-<div class="feat"><h3>Weights and tests</h3><p>Weight the skills that matter most. Add timed or measured tests in metric or imperial.</p></div>
-<div class="feat"><h3>Disagreement flags</h3><p>See at a glance where coaches saw a player very differently.</p></div>
-<div class="feat"><h3>Team decisions</h3><p>Made team, waitlist or camp tracks in a tap, or filled from the ranking. A clean list to post.</p></div>
-<div class="feat"><h3>Score guides</h3><p>What a 3 or a 5 means, right under the score, so every coach scores the same way.</p></div>
-<div class="feat"><h3>Run it together</h3><p>Add as many organizers as you need. Everyone sees the same results, live.</p></div>
-<div class="feat"><h3>Templates</h3><p>Save your form and reuse it next season, for every age group.</p></div>
-<div class="feat"><h3>PDF and spreadsheet</h3><p>Results lists and player cards to print, email or open in Excel.</p></div>
+<div class="feat rv" style="--c:#ff8a3d"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h4"/></svg></div><h3>Score your way</h3><p>By jersey number, by name, or one skill across every player. 1 to 5, 1 to 10, + ✓ −, or your own scale.</p></div>
+<div class="feat rv" style="--c:#4da3ff"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14.5c2.4.2 4 1.8 4.5 4.5"/></svg></div><h3>Run it together</h3><p>Add as many organizers and coaches as you need. Everyone sees the same results, live.</p></div>
+<div class="feat rv" style="--c:#35c9a0"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg></div><h3>Check-in</h3><p>Mark players as they arrive. No-shows drop to the bottom and are skipped while scoring.</p></div>
+<div class="feat rv" style="--c:#a98bff"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/></svg></div><h3>Stations</h3><p>Give each coach their skills or groups. See who still needs scoring by whom.</p></div>
+<div class="feat rv" style="--c:#ff6f91"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg></div><h3>Disagreement flags</h3><p>See at a glance where coaches saw a player very differently, and compare coaches side by side.</p></div>
+<div class="feat rv" style="--c:#e8b931"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg></div><h3>Team decisions</h3><p>Made team, waitlist or camp tracks in a tap, or filled from the ranking. A clean list to post.</p></div>
+<div class="feat rv" style="--c:#6fcf5f"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"/><path d="M8 10h8M8 14h5"/></svg></div><h3>Score guides</h3><p>What a 3 or a 5 means, right under the score, so every coach scores the same way.</p></div>
+<div class="feat rv" style="--c:#45c8e0"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg></div><h3>Days, weights and tests</h3><p>Several days, weighted skills, and timed or measured tests in metric or imperial.</p></div>
+<div class="feat rv" style="--c:#ff8a3d"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg></div><h3>PDF and spreadsheet</h3><p>Results, player cards and a full grid to print, email or open in Excel. Save your form as a template for next season.</p></div>
 </div>
 </section>
 
-<section>
+<section class="rv">
 <div class="sp">
 <div><div class="sp-k">After tryouts</div><h2>Team picked? Track the season on Shot<b>Pulse</b>.</h2>
 <p>ShotPulse is the game stats app from the same maker: shots, goals and saves by period, season totals, and a live link so parents can follow along. For hockey, ringette, basketball, soccer, lacrosse and handball.</p></div>
@@ -128,13 +228,30 @@ footer a.spname{color:#fff;font-weight:800;text-decoration:none}footer a.spname 
 </div>
 </section>
 
-<section>
-<div class="band">
+<section class="rv" style="padding-top:0">
+<div class="priv">
+<div class="shield"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.3 8.2-8 9-4.7-.8-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg></div>
 <div><h2>Kids' data stays minimal and private</h2><p>Number, name, position, division and group. No birthdays, emails or photos. Ratings are seen by the organizer only. <a href="/privacy">Read the privacy page</a>.</p></div>
-<a class="btn p" href="/#/demo">Try the demo</a>
 </div>
 </section>
 
-<footer><span>RosterPulse · tryouts and camps · from the maker of <a class="spname" href="https://shotpulse.app" target="_blank" rel="noopener">Shot<b>Pulse</b></a></span><span><a href="/">Open the app</a> · <a href="/privacy">Privacy</a></span></footer>
+<section class="rv" style="padding-top:0">
+<div class="final">
+<h2>Ready for tryout day?</h2>
+<p>Look around a sample tryout with scores already in, or set up your own event in a few minutes. Free while in testing.</p>
+<div class="ctas"><a class="btn p" href="/#/demo"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Try the demo</a><a class="btn" href="/">Start an event</a></div>
+<svg class="fp" viewBox="0 0 1200 70" preserveAspectRatio="none" aria-hidden="true"><path d="M0 40 H470 L500 40 L520 8 L545 64 L565 22 L582 40 H1200"/></svg>
 </div>
+</section>
+
+<footer><span>RosterPulse · Keep your finger on the pulse of every tryout · from the maker of <a class="spname" href="https://shotpulse.app" target="_blank" rel="noopener">Shot<b>Pulse</b></a></span><span><a href="/">Open the app</a> · <a href="/privacy">Privacy</a></span></footer>
+</div>
+<script>
+(function () {
+  var els = document.querySelectorAll('.rv');
+  if (!('IntersectionObserver' in window)) { els.forEach(function (e) { e.classList.add('in'); }); return; }
+  var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }); }, { rootMargin: '0px 0px -8% 0px' });
+  els.forEach(function (e) { io.observe(e); });
+})();
+</script>
 </body></html>
