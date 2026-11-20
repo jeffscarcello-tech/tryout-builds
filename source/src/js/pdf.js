@@ -66,7 +66,7 @@ function makePdf(rep) {
   const cat = add(''), pgs = add(''), f1 = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'), f2 = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
   const kids = [];
   pages.forEach((body, i) => {
-    const foot = '0.45 0.45 0.45 rg BT /F1 7.5 Tf ' + M + ' 20 Td (' + pdfEsc(pdfText('Made with RosterPulse · results are private to the organizer · page ' + (i + 1) + ' of ' + pages.length)) + ') Tj ET';
+    const foot = '0.45 0.45 0.45 rg BT /F1 7.5 Tf ' + M + ' 20 Td (' + pdfEsc(pdfText('RosterPulse · Keep your finger on the pulse of every tryout · results are private to the organizer · page ' + (i + 1) + ' of ' + pages.length)) + ') Tj ET';
     const content = body + '\n' + foot;
     const c = add('<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream');
     kids.push(add('<< /Type /Page /Parent ' + pgs + ' 0 R /MediaBox [0 0 ' + W + ' ' + H + '] /Resources << /Font << /F1 ' + f1 + ' 0 R /F2 ' + f2 + ' 0 R >> >> /Contents ' + c + ' 0 R >>'));

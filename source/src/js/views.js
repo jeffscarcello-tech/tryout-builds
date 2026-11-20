@@ -71,6 +71,7 @@ function viewHome() {
       installCard(),
       tip('home', 'New here? Tap Try the demo to look around a sample tryout with scores already in. When you are ready, tap New event.'),
       h('div', { class: 'hero' }, h('h1', { class: 'disp' }, 'Tryouts and camps'),
+        h('p', { class: 'tagline' }, 'Keep your finger on the pulse of every tryout.'),
         h('p', { class: 'muted' }, 'Set up your event, load your roster, and score players by jersey number.')),
       h('button', { class: 'btn primary block big', style: 'margin-top:14px', onclick: newEventSheet }, icon('plus'), 'New event'),
       h('button', { class: 'btn block', style: 'margin-top:8px', onclick: () => joinSheet() }, icon('link'), 'Join with a code'),

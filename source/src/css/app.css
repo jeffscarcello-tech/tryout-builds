@@ -292,3 +292,5 @@ button.bar-row.tapable:active{border-color:var(--accent)}
 .rpgrid thead{display:table-header-group}.rpgrid tbody{display:table-row-group}.rpgrid tr{display:table-row}
 .gridwrap table.rpgrid{display:table!important;width:auto}.gridwrap .rpgrid thead{display:table-header-group!important}.gridwrap .rpgrid tbody{display:table-row-group!important}
 .finishbtn{border-color:rgba(80,200,120,.5);color:var(--good)}.finishbtn svg{color:var(--good)}
+
+.hero .tagline{color:var(--accent);font-weight:800;font-size:17px;margin:2px 0 6px;letter-spacing:-.01em}

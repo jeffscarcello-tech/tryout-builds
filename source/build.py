@@ -54,7 +54,7 @@ def main():
     sw = fill(read('sw.js'))
     manifest = json.dumps({
         'id': '/', 'name': name, 'short_name': name,
-        'description': 'Tryouts and camps: score players by jersey number from any phone.',
+        'description': 'Keep your finger on the pulse of every tryout. Score players by jersey number from any phone.',
         'start_url': '/', 'scope': '/', 'display': 'standalone', 'orientation': 'any', 'lang': 'en',
         'background_color': '#0b0b0e', 'theme_color': '#0b0b0e', 'categories': ['sports'],
         'icons': [
