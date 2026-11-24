@@ -4,6 +4,32 @@
 const APP = { name: '__NAME__', build: '__BUILD__', label: '__LABEL__' };
 let SWREG = null;
 
+/* t28: updates. The old Check for updates leaned on service-worker timing: the new worker takes over by itself within
+   a second, so after 1.8 s the button often said "latest" (or nothing) while the screen stayed old. Now the app asks the
+   server which build is live (/api/health, never cached) and, if it differs, clears the stored copies and reloads,
+   which always loads the new version. The same check runs when the app is opened or comes back to the screen. */
+async function serverBuild() {
+  const r = await fetch('/api/health?t=' + Date.now(), { cache: 'no-store' });
+  if (!r.ok) throw new Error('health_' + r.status);
+  const j = await r.json(); return j && j.build ? String(j.build) : null;
+}
+let updating = false, offered = '';
+async function applyUpdate() {
+  if (updating) return; updating = true;
+  toast('Updating RosterPulse…');
+  try { save(true); } catch (e) { /* ignore */ }
+  try { const reg = SWREG || ('serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null); if (reg) await Promise.race([reg.update(), new Promise(r => setTimeout(r, 4000))]).catch(() => { }); } catch (e) { /* ignore */ }
+  try { if (window.caches) { const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); } } catch (e) { /* ignore */ }
+  location.reload();
+}
+function offerUpdate(build) {
+  if (updating || offered === build) return; offered = build;
+  toastAction('A new version of RosterPulse is ready' + (build ? ' (' + build + ')' : '') + '.', 'Update now', applyUpdate, 120000);
+}
+async function quietCheck() {
+  if (!navigator.onLine || updating) return;
+  try { const b = await serverBuild(); if (b && b !== APP.build) offerUpdate(b); } catch (e) { /* offline or busy: try later */ }
+}
 function registerSW() {
   try {
     if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) return;
@@ -11,26 +37,21 @@ function registerSW() {
     navigator.serviceWorker.register('/sw.js').then(reg => {
       SWREG = reg;
       const check = () => { try { reg.update().catch(() => { }); } catch (e) { /* ignore */ } };
-      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { check(); quietCheck(); } });
       check();
     }).catch(() => { });
-    let shown = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (!had || shown) return; shown = true;   // the first install is not an update
-      toastAction('A new version of RosterPulse is ready.', 'Update now', () => { save(true); location.reload(); }, 60000);
-    });
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (had) quietCheck(); });   // the first install is not an update
   } catch (e) { /* ignore */ }
+  setTimeout(quietCheck, 2500);
+  window.addEventListener('online', () => setTimeout(quietCheck, 1500));
 }
 async function checkForUpdate() {
-  try {
-    if (!SWREG && 'serviceWorker' in navigator) SWREG = await navigator.serviceWorker.getRegistration().catch(() => null) || null;
-    if (!SWREG) { toast('Updates are checked when the app is opened from its web address.'); return; }
-    toast('Checking…');
-    await SWREG.update();
-    await new Promise(r => setTimeout(r, 1800));
-    if (SWREG.waiting || SWREG.installing) { toastAction('A new version is ready.', 'Update now', () => { save(true); location.reload(); }, 60000); return; }
-    toast('You have the latest version (' + APP.build + ').');
-  } catch (e) { toast('Could not check right now. Are you online?'); }
+  if (!navigator.onLine) { toast('No signal. Check for updates needs a connection.'); return; }
+  toast('Checking…');
+  let b;
+  try { b = await serverBuild(); } catch (e) { toast('Could not check right now. Try again in a moment.'); return; }
+  if (!b || b === APP.build) { toast('You have the latest version (' + APP.build + ').'); return; }
+  applyUpdate();
 }
 
 let lastRoute = '';
@@ -74,5 +95,5 @@ function render() {
   if (jm) { const n0 = (new URLSearchParams(location.search).get('n') || '').slice(0, 30); history.replaceState(null, '', '/' + location.hash); setTimeout(() => joinSheet(jm[1].toUpperCase(), n0), 150); }
   applyTheme();
   setTimeout(syncTick, 800);
-  window.__rp = { S, SPORTS, parseRoster, formFromSport, newEvent, render, syncEvent, SYNC };   // for tests
+  window.__rp = { APP, S, SPORTS, parseRoster, formFromSport, newEvent, render, syncEvent, SYNC };   // for tests
 })();

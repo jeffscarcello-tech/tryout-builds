@@ -123,7 +123,7 @@ const HELP = [
   ['After tryouts', [
     'For hockey, ringette, basketball, soccer and lacrosse, ShotPulse (shotpulse.app, from the maker of RosterPulse) tracks the team\'s game stats all season, with a live link for parents. The two apps are separate: nothing moves between them unless you type it in.']],
   ['Updates', [
-    'The app updates itself. Home, Check for updates shows the version and gets the newest one.']]];
+    'The app checks for a new version when you open it and shows Update now. Home, More, Check for updates shows your version and updates straight away if a newer one is out.']]];
 function viewHelp() {
   return [topBar('Help', 'home'), h('main', { class: 'page doc' },
     h('p', { class: 'muted', style: 'margin-bottom:12px' }, 'Quick answers. Tap a topic.'),
