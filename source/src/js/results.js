@@ -62,11 +62,12 @@ function computeResults(ev, day) {
   });
   /* ranks: overall, and within position, group, division (only players with an overall) */
   const ranked = rows.filter(r => r.pct != null).sort((a, b) => b.pct - a.pct);
-  const rankIn = (list, key) => { const groups = {}; for (const r of list) { const g = key(r); if (!g) continue; (groups[g] = groups[g] || []).push(r); } for (const g in groups) groups[g].forEach((r, i, a) => { r.rank = r.rank || {}; r.rank[key.name] = { at: tieRank(a, i), of: a.length, label: g }; }); };
+  // key may give one label or a list (several positions): the player is ranked in each; rank[name] is the first, rank[name + 'All'] all of them.
+  const rankIn = (list, key) => { const groups = {}; for (const r of list) { for (const g of [].concat(key(r) || [])) { if (g) (groups[g] = groups[g] || []).push(r); } } for (const g in groups) groups[g].forEach((r, i, a) => { r.rank = r.rank || {}; const x = { at: tieRank(a, i), of: a.length, label: g }; if (!r.rank[key.name]) r.rank[key.name] = x; (r.rank[key.name + 'All'] = r.rank[key.name + 'All'] || []).push(x); }); };
   const tieRank = (a, i) => { let j = i; while (j > 0 && Math.abs(a[j - 1].pct - a[i].pct) < 1e-9) j--; return j + 1; };
   ranked.forEach((r, i, a) => { r.rank = { all: { at: tieRank(a, i), of: a.length } }; });
   const groupName = r => { const g = ev.groups.find(x => x.id === r.p.group); return g ? g.name : ''; };
-  rankIn(ranked, function pos(r) { return r.p.pos; }); rankIn(ranked, function grp(r) { return groupName(r); }); rankIn(ranked, function div(r) { return r.p.div; });
+  rankIn(ranked, function pos(r) { return positionsOf(r.p); }); rankIn(ranked, function grp(r) { return groupName(r); }); rankIn(ranked, function div(r) { return r.p.div; });
   /* test ranks */
   for (const t of f.tests) { const have = rows.filter(r => r.tests[t.id] != null).sort((a, b) => t.better === 'low' ? a.tests[t.id] - b.tests[t.id] : b.tests[t.id] - a.tests[t.id]); have.forEach((r, i) => { r.testRank = r.testRank || {}; r.testRank[t.id] = { at: i + 1, of: have.length }; }); }
   return { rows, mx, skMax, rule, dayIds };
@@ -145,7 +146,7 @@ function resultRows(ev) {
   const gname = id => (ev.groups.find(g => g.id === id) || {}).name || '';
   const hasG = id => ev.groups.some(g => g.id === id);
   const okG = r => !RS.group || (RS.group === NONE ? !hasG(r.p.group) : r.p.group === RS.group);
-  const okP = r => !RS.pos || (RS.pos === NONE ? !r.p.pos : r.p.pos === RS.pos);
+  const okP = r => !RS.pos || (RS.pos === NONE ? !r.p.pos : hasPosition(r.p, RS.pos));
   const okD = r => !RS.div || (RS.div === NONE ? !r.p.div : r.p.div === RS.div);
   if (RS.group && RS.group !== NONE && !hasG(RS.group)) RS.group = '';
   if (RS.pos && RS.pos !== NONE && !f.positions.includes(RS.pos)) RS.pos = '';
@@ -251,7 +252,7 @@ function viewPlayerCard(evId, pid) {
       h('div', { class: 'rcard' },
         h('div', { class: 'ovr' }, r.pct == null ? h('div', { class: 'big' }, '–') : [h('div', { class: 'big' }, f.scale === 'pcm' ? Math.round(r.pct) + '%' : fmtV(r.overall)), h('div', { class: 'of' }, f.scale === 'pcm' ? 'overall' : 'out of ' + mx + ' · ' + Math.round(r.pct) + '%')]),
         h('div', { class: 'rchips' },
-          r.rank ? [chip('overall', r.rank.all), r.rank.pos ? chip(p.pos + 's', r.rank.pos) : null, r.rank.grp ? chip('in ' + r.rank.grp.label, r.rank.grp) : null, r.rank.div ? chip('in ' + p.div, r.rank.div) : null] : h('div', { class: 'note' }, 'Not scored yet.'))),
+          r.rank ? [chip('overall', r.rank.all), (r.rank.posAll || []).map(x => chip(x.label + 's', x)), r.rank.grp ? chip('in ' + r.rank.grp.label, r.rank.grp) : null, r.rank.div ? chip('in ' + p.div, r.rank.div) : null] : h('div', { class: 'note' }, 'Not scored yet.'))),
       h('div', { class: 'row', style: 'margin-top:10px;flex-wrap:wrap;gap:8px' },
         h('span', { class: 'pbadge full' }, 'Scored by ' + plural(r.nEval, 'evaluator', 'evaluators')),
         r.scored < r.of ? h('span', { class: 'pbadge' }, r.scored + ' of ' + r.of + ' skills scored') : null,
@@ -331,7 +332,7 @@ function cardReport(ev, pid) {
   const f = ev.form, p = r.p, ks = skillsFor(ev, p), gname = (ev.groups.find(g => g.id === p.group) || {}).name, multi = res.dayIds.length > 1;
   const rk = (lbl, x) => x ? ['#' + x.at + ' of ' + x.of + ' ' + lbl] : [];
   const blocks = [{ kv: [['Overall', r.pct == null ? 'not scored' : (f.scale === 'pcm' ? Math.round(r.pct) + '%' : fmtV(r.overall) + ' out of ' + res.skMax + ' (' + Math.round(r.pct) + '%)')]].concat(
-    r.rank ? [['Rank', [].concat(rk('overall', r.rank.all), rk(p.pos ? 'in ' + p.pos : '', r.rank.pos), rk('in ' + (gname || ''), r.rank.grp), rk('in ' + (p.div || ''), r.rank.div)).join(', ')]] : [],
+    r.rank ? [['Rank', [].concat(rk('overall', r.rank.all), ...(r.rank.posAll || []).map(x => rk('in ' + x.label, x)), rk('in ' + (gname || ''), r.rank.grp), rk('in ' + (p.div || ''), r.rank.div)).join(', ')]] : [],
     [['Scored by', plural(r.nEval, 'evaluator', 'evaluators')]], decisionsOf(ev).has(p.id) ? [['Decision', outcomesOf(ev).find(o => o.id === decisionsOf(ev).get(p.id)).name]] : [], r.flagged.length ? [['Evaluators disagree on', r.flagged.join(', ')]] : []) },
     { h: 'Skills' }, { table: { head: ['Skill', 'Score'].concat(multi ? ev.sessions.filter(d => res.dayIds.includes(d.id)).map(d => d.name) : [], ['Evaluators']), align: ['l', 'r'].concat(multi ? res.dayIds.map(() => 'r') : [], ['r']),
       rows: ks.map(k => { const x = r.skills[k.id]; return [k.name + (k.w !== 1 ? ' (' + wLabel(k.w) + ')' : ''), x ? shortScore(f, x.v) : '–'].concat(multi ? res.dayIds.map((_, j) => x && x.days && x.days[j] != null ? shortScore(f, x.days[j]) : '–') : [], [x ? String(x.n) : '']); }) } }];

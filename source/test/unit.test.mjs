@@ -9,7 +9,7 @@ const ctx = { console, JSON, Date, Math, Map, Set, String, Object, Array, parseI
   localStorage: { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; } },
   window: { addEventListener() { } }, document: { addEventListener() { }, querySelectorAll: () => [], hidden: false }, navigator: { onLine: false }, toast() { } };
 vm.createContext(ctx);
-vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind, computeResults, notesFor, convertScale, hasSkillScores, scaleMax, skillApplies, skillChoices, scaleLo, scaleHi, useSlider, scaleLabel, makePdf, pdfText, wrapText, mergeRecs, queued, waitingCount, payloadOf, myId, isShared, checkinFor, setHere, checkMapOf, myGroups, groupPlayers, canCheckIn, makeDemo, computeResults, ensureChecks, mergeOrgCopy, orgPayloadOf, authOf, decisionsOf, setDecision, outcomesOf, decisionsCsv, decisionsReport, guideText, sampleGuides, gkey, hasGuide, applyOrgCopy, skillNotes, stationOf, progressOf, coachStats, gridReport, setScore };', ctx);
+vm.runInContext(src + '\n;globalThis.__t = { SPORTS, sportById, wordsOf, formFromSport, copyForm, parseRoster, duplicateNumbers, sortPlayers, newEvent, S, exportData, importData, save, setScore, getScore, shownScore, progressOf, skillsFor, scaleValues, me, setNote, getNote, groupPlayers, ensureDays, convertTest, setSystem, systemOf, unitKind, computeResults, notesFor, convertScale, hasSkillScores, scaleMax, skillApplies, skillChoices, scaleLo, scaleHi, useSlider, scaleLabel, makePdf, pdfText, wrapText, mergeRecs, queued, waitingCount, payloadOf, myId, isShared, checkinFor, setHere, checkMapOf, myGroups, groupPlayers, canCheckIn, makeDemo, computeResults, ensureChecks, mergeOrgCopy, orgPayloadOf, authOf, decisionsOf, setDecision, outcomesOf, decisionsCsv, decisionsReport, guideText, sampleGuides, gkey, hasGuide, applyOrgCopy, skillNotes, stationOf, progressOf, coachStats, gridReport, setScore, positionsOf, hasPosition, normPositions, skillApplies };', ctx);
 const T = ctx.__t;
 let n = 0; const ok = m => { n++; console.log('ok', n, m); };
 
@@ -213,6 +213,30 @@ assert.ok(T.wrapText('word '.repeat(60), 10, 200).length > 3); ok('long text wra
   const G = T.gridReport(D); assert.ok(G.landscape); assert.equal(G.blocks[0].table.rows.length, 16); assert.equal(G.blocks[0].table.head.length, 3 + D.form.skills.length + D.form.tests.length); ok('results grid PDF: every player by every skill');
   D.locked = true; const before = JSON.stringify(D.scores); T.setScore(D, D.players[1].id, ks[0].id, sid, 1); assert.equal(JSON.stringify(D.scores), before); ok('a finished event takes no new scores');
   T.S.events = T.S.events.filter(e => e !== D);
+}
+// t31: several positions per player
+{
+  const vb3 = T.formFromSport('volleyball');
+  assert.deepEqual([...T.positionsOf({ pos: 'Setter, Outside' })], ['Setter', 'Outside']); assert.deepEqual([...T.positionsOf({ pos: '' })], []); assert.deepEqual([...T.positionsOf({ pos: 'Setter' })], ['Setter']);
+  assert.ok(T.hasPosition({ pos: 'Setter, Libero' }, 'Libero') && !T.hasPosition({ pos: 'Setter, Libero' }, 'Middle')); ok('positionsOf and hasPosition read "Setter, Outside"');
+  assert.equal(T.normPositions('setter/outside', vb3), 'Setter, Outside'); assert.equal(T.normPositions('Setter & Libero', vb3), 'Setter, Libero'); assert.equal(T.normPositions('libero', vb3), 'Libero');
+  assert.equal(T.normPositions('Setter, Outside, Setter', vb3), 'Setter, Outside'); ok('imports turn setter/outside and Setter & Libero into known positions');
+  const fb = T.formFromSport('football'); const kp = fb.positions.find(x => x.includes('/'));
+  if (kp) { assert.equal(T.normPositions(kp.toLowerCase(), fb), kp); ok('a position with a slash in its name (' + kp + ') stays whole'); }
+  let rr = T.parseRoster('Number,Name,Position\n4,Sam Lee,"Setter, Outside"\n5,Kai Wu,setter/libero\n6,Ann Ho,Middle', vb3);
+  assert.deepEqual(rr.players.map(x => x.pos), ['Setter, Outside', 'Setter, Libero', 'Middle']);
+  rr = T.parseRoster('7,Jordan Park,Setter,Outside', vb3); assert.equal(rr.players[0].pos, 'Setter, Outside'); assert.equal(rr.players[0].name, 'Jordan Park'); ok('roster import keeps several positions (column or loose)');
+  const E = T.newEvent('Multi pos', 'volleyball', vb3); T.ensureDays(E); const sid = E.sessions[0].id, ks = E.form.skills;
+  E.players = [{ id: 'a', num: '1', name: 'A', pos: 'Setter, Outside', div: '', group: '' }, { id: 'b', num: '2', name: 'B', pos: 'Setter', div: '', group: '' }, { id: 'c', num: '3', name: 'C', pos: 'Outside', div: '', group: '' }];
+  for (const [pid, v] of [['a', 5], ['b', 3], ['c', 4]]) for (const k of ks) T.setScore(E, pid, k.id, sid, v);
+  const res = T.computeResults(E), ra = res.rows.find(x => x.p.id === 'a'), rc = res.rows.find(x => x.p.id === 'c');
+  assert.equal(ra.rank.posAll.length, 2); assert.deepEqual(ra.rank.posAll.map(x => x.label + ' ' + x.at + '/' + x.of), ['Setter 1/2', 'Outside 1/2']);
+  assert.equal(rc.rank.pos.label + ' ' + rc.rank.pos.at + '/' + rc.rank.pos.of, 'Outside 2/2'); ok('a player with two positions is ranked in both');
+  const hk = T.formFromSport('hockey'), H = T.newEvent('Hk', 'hockey', hk);
+  const g1 = { id: 'g1', pos: 'Goalie' }, g2 = { id: 'g2', pos: 'Forward, Goalie' }, f3 = { id: 'f3', pos: 'Forward' };
+  assert.equal(T.skillsFor(H, g1).length, hk.alt.skills.length); assert.equal(T.skillsFor(H, f3).length, hk.skills.length); assert.equal(T.skillsFor(H, g2).length, hk.alt.skills.length + hk.skills.length);
+  ok('goalie and forward gets both skill lists; goalie only gets goalie skills');
+  T.S.events = T.S.events.filter(e => e !== E && e !== H);
 }
 require_fs: { const fs = await import('node:fs'); fs.writeFileSync('/tmp/rp-test.pdf', pdf); }
 console.log('ALL', n, 'UNIT TESTS PASSED');

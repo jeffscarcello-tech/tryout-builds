@@ -60,7 +60,8 @@ function ensureDays(ev) {
 }
 const dayById = (ev, sid) => ev.sessions.find(d => d.id === sid) || ev.sessions[ev.sessions.length - 1];
 
-function skillsFor(ev, p) { const f = ev.form; return f.alt && p && p.pos === f.alt.pos ? f.alt.skills : f.skills; }
+// The goalie (alt) skill list: a player who is only a goalie gets it; a player trying out as goalie and something else gets both lists.
+function skillsFor(ev, p) { const f = ev.form; if (!f.alt || !p || !hasPosition(p, f.alt.pos)) return f.skills; return positionsOf(p).length > 1 ? f.alt.skills.concat(f.skills) : f.alt.skills; }
 function getScore(ev, pid, kid, sid, by) { const r = ev.scores && ev.scores[sKey(by || myId(ev), pid, kid, sid)]; return r && r.v != null ? r.v : null; }
 /* the value to show for this day: this day's own score, or (carry forward) the latest earlier day's */
 function shownScore(ev, pid, kid, sid, by) {
@@ -199,7 +200,7 @@ function skillApplies(ev, p, kid) {
   const f = ev.form; if (f.tests.some(t => t.id === kid)) return true;
   if (!f.alt) return true;
   const isAlt = f.alt.skills.some(k => k.id === kid);
-  return isAlt ? p.pos === f.alt.pos : p.pos !== f.alt.pos;
+  return isAlt ? hasPosition(p, f.alt.pos) : (!hasPosition(p, f.alt.pos) || positionsOf(p).length > 1);
 }
 function skillChoices(ev) {
   const f = ev.form, st = stationOf(ev, myId(ev));

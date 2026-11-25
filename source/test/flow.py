@@ -152,7 +152,8 @@ def run(p, name, vp, mobile):
     shot('16-player')
     pg.click('button[aria-label="Back"]'); pg.wait_for_selector('text=Import list')
     pg.locator('.prow2', has_text='Kai W').click(); pg.wait_for_selector('.pinfo'); pg.click('button[aria-label="Edit details"]')
-    sheet().locator('.field', has_text='Position').locator('button.chip', has_text='None').click(); sheet().locator('button', has_text='Save').last.click(); time.sleep(0.2)
+    sheet().locator('.field', has_text='Position').locator('button.chip.on').first.click(); assert sheet().locator('.field', has_text='Position').locator('button.chip.on').count() == 0;   # t31: untap to clear
+    sheet().locator('button', has_text='Save').last.click(); time.sleep(0.2)
     pg.click('button[aria-label="Back"]'); pg.wait_for_selector('text=Import list')
     pg.locator('.seg button', has_text='Results').click(); pg.wait_for_selector('.rrow')
     assert pg.locator('.rrow').count() == 6, pg.locator('.rrow').count()

@@ -60,6 +60,20 @@ const HEAD = {
   group: /^(group|session|squad|team)$/i,
   notes: /^(notes?|comments?)$/i
 };
+/* t31: a player can have more than one position (trying out for both). Kept as one text, "Setter, Outside", so it
+   syncs and exports like before; these helpers read it as a list. */
+const POS_SEP = ', ';
+function positionsOf(p) { return String((p && typeof p === 'object' ? p.pos : p) || '').split(/\s*[,;]\s*/).map(s => s.trim()).filter(Boolean); }
+function hasPosition(p, x) { return positionsOf(p).includes(x); }
+// From an import: "Setter/Outside", "Setter, Outside", "Setter & Libero" become "Setter, Outside" when every part is a known position.
+function normPositions(raw, form) {
+  const known = (form && form.positions) || [], low = known.map(k => k.toLowerCase()), s = String(raw || '').trim();
+  if (!s) return '';
+  const whole = low.indexOf(s.toLowerCase()); if (whole > -1) return known[whole];
+  const parts = s.split(/\s*(?:[,;\/|+&]|\band\b)\s*/i).filter(Boolean);
+  if (parts.length > 1 && parts.every(x => low.includes(x.toLowerCase()))) return [...new Set(parts.map(x => known[low.indexOf(x.toLowerCase())]))].join(POS_SEP);
+  return clean(positionsOf(s).join(POS_SEP), 80);
+}
 function parseRoster(text, form) {
   const lines = String(text || '').replace(/\r/g, '').split('\n').map(l => l.trim()).filter(Boolean);
   if (!lines.length) return { players: [], skipped: [] };
@@ -86,7 +100,7 @@ function parseRoster(text, form) {
         const rest = [];
         for (const p of parts) {
           if (!num && /^#?\d{1,3}$/.test(p)) num = p.replace('#', '');
-          else if (!pos && posList.includes(p.toLowerCase())) pos = p;
+          else if (posList.includes(p.toLowerCase()) || (p.length > 2 && /[\/&+|]/.test(p) && normPositions(p, form).includes(POS_SEP))) pos = pos ? pos + POS_SEP + p : p;
           else if (!div && (divList.includes(p.toLowerCase()) || /^u\d{1,2}$/i.test(p))) div = p;
           else if (p) rest.push(p);
         }
@@ -99,7 +113,7 @@ function parseRoster(text, form) {
     num = cleanNum(num); name = clean(name, 40);
     if (!num && !name) { skipped.push(line); continue; }
     if (/^(name|player|#|number)$/i.test(name) && !num) { skipped.push(line); continue; }
-    if (pos) { const i = posList.indexOf(pos.toLowerCase()); pos = i > -1 ? form.positions[i] : clean(pos, 30); }
+    if (pos) pos = normPositions(pos, form);
     players.push({ num, name, pos, div: clean(div, 20), group: clean(group, 40), notes: clean(notes, 200) });
   }
   return { players, skipped };

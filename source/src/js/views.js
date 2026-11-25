@@ -211,6 +211,13 @@ function chipPick(options, value, onPick, allowNone = true) {
   paint(); return box;
 }
 
+// Several choices at once (positions): tap to add or remove. Kept in the order of the options.
+function chipMulti(options, values, onChange) {
+  const box = h('div', { class: 'chips' }); let on = values.slice();
+  const paint = () => box.replaceChildren(...options.map(([k, l]) => h('button', { class: 'chip' + (on.includes(k) ? ' on' : ''), type: 'button', 'aria-pressed': on.includes(k) ? 'true' : 'false', onclick: () => {
+    on = on.includes(k) ? on.filter(x => x !== k) : options.map(o => o[0]).filter(x => x === k || on.includes(x)); onChange(on); paint(); } }, on.includes(k) ? icon('check') : null, l)));
+  paint(); return box;
+}
 function playerSheet(ev, p) {
   const isNew = !p, d = Object.assign({ num: '', name: '', pos: '', div: '', group: playerFilter !== 'all' && playerFilter !== 'none' ? playerFilter : '', notes: '' }, p || {});
   openSheet((s, api) => {
@@ -226,7 +233,10 @@ function playerSheet(ev, p) {
     s.append(h('h2', null, isNew ? 'Add ' + W.player : (d.num ? '#' + d.num + ' ' : '') + (d.name || cap(W.player))),
       h('div', { class: 'stack' },
         h('div', { class: 'row', style: 'align-items:flex-start' }, field('Number', num), h('div', { class: 'grow' }, field('Name', name))),
-        ev.form.positions.length ? field(cap(W.position), chipPick(ev.form.positions.map(x => [x, x]), d.pos, v => { d.pos = v; })) : null,
+        ev.form.positions.length ? (() => {   // t31: more than one position
+          const opts = ev.form.positions.concat(positionsOf(d).filter(x => !ev.form.positions.includes(x))).map(x => [x, x]);
+          return field(cap(W.positions) + ' (tap all that apply)', chipMulti(opts, positionsOf(d), v => { d.pos = v.join(POS_SEP); }));
+        })() : null,
         ev.form.divisions.length ? field('Age division', chipPick(ev.form.divisions.map(x => [x, x]), d.div, v => { d.div = v; })) : null,
         ev.groups.length ? field('Group', chipPick(ev.groups.map(g => [g.id, g.name]), d.group, v => { d.group = v; })) : null,
         field('Notes', notes),

@@ -307,3 +307,6 @@ button.bar-row.tapable:active{border-color:var(--accent)}
 .nomatch .nms{font-size:15px;font-weight:600;margin-top:3px}
 @keyframes nmshake{0%,100%{transform:none}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 @media (prefers-reduced-motion:reduce){.nomatch{animation:none}}
+
+/* t31: positions can be several: a tick on the chosen chips */
+.chip > svg{width:15px;height:15px;margin:-2px 4px -2px -2px;vertical-align:middle}

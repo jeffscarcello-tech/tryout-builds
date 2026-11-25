@@ -150,5 +150,5 @@ function render() {
   if (jm) { const n0 = (new URLSearchParams(location.search).get('n') || '').slice(0, 30); history.replaceState(null, '', '/' + location.hash); setTimeout(() => joinSheet(jm[1].toUpperCase(), n0), 150); }
   applyTheme();
   setTimeout(syncTick, 800);
-  window.__rp = { APP, S, SPORTS, parseRoster, formFromSport, newEvent, render, syncEvent, SYNC, reportInfo, reportUrl, reportProblem, reportSheet };   // for tests
+  window.__rp = { APP, S, SPORTS, setScore, ensureDays, parseRoster, formFromSport, newEvent, render, syncEvent, SYNC, reportInfo, reportUrl, reportProblem, reportSheet };   // for tests
 })();
