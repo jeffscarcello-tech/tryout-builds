@@ -1,1 +1,25 @@
-# tryout-builds
+# tryout-builds (RosterPulse)
+
+Builds and source for RosterPulse, Jeff's tryout and camp evaluation app.
+
+- `test/` holds the current test build (`app.json`, `build.txt`). The updater Worker `tryout-updater` checks every 5 minutes and installs it on https://tryouttest.jeffscarcello.workers.dev when `build.txt` changes.
+- `source/` holds all the source. `python3 build.py` writes `dist/app.json` and `dist/build.txt`. Tests are in `source/test/`.
+- There is no live site yet, so there is no `live/` or `pending/` folder. When a live site is added, the live build goes in `live/` and the daily task puts fixes waiting for Jeff's yes in `pending/` (the updater must ignore `pending/`).
+
+## Updates
+- `/api/health` on the site says which build is installed (never cached).
+- Home, More, Check for updates asks `/api/health`; if the build differs it clears stored copies and reloads. The same check runs on open and when the app comes back to the screen, offering "A new version of RosterPulse is ready" with Update now.
+
+## Report a problem (since nov25-t29)
+- Home, More, Report a problem (right under Check for updates). `reportProblem()` in `source/src/js/main.js` opens
+  `mailto:support@shotpulse.app` with subject `RosterPulse problem (<build>)` and a body with "What happened?", "What did you expect?" and `reportInfo()` (build, device and OS version, Home Screen app or browser, screen and window size, page, online, events, players, templates, time, browser).
+- After 1.2 s a toast says "If no email opened, write to support@shotpulse.app".
+- Test hook: `window.__rp.reportInfo`, `reportUrl`, `reportProblem`. Browser test: `source/test/t29.py`.
+- The subject must keep starting with "RosterPulse problem": the daily task searches Gmail for exactly that.
+
+## Daily RosterPulse problem reports (scheduled task)
+Each evening it searches Gmail for `subject:"RosterPulse problem" newer_than:3d -label:RosterPulse-handled`. It sorts reports into clear bug, unclear and request. For clear bugs only, it fixes the source, builds the next test version, tests it at 390 and 1280 px and pushes it to `test/` (the test site). It never changes a Worker, never touches ShotPulse, never replies to or deletes email, and never builds requests. It labels what it read `RosterPulse-handled` and sends Jeff a short summary.
+
+## Recent changes
+- nov25-t29: Report a problem button.
+- nov24-t28: Check for updates asks the server.

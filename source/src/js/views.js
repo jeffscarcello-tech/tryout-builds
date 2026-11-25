@@ -101,7 +101,8 @@ function viewHome() {
         h('a', { class: 'item', href: 'https://shotpulse.app', target: '_blank', rel: 'noopener' }, icon('stats'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'ShotPulse'), h('div', { class: 'pmeta' }, 'Game stats for the season, from the same maker')), icon('chev')),
         h('button', { class: 'item', onclick: () => { location.href = '/about'; } }, icon('target'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'About RosterPulse'), h('div', { class: 'pmeta' }, 'The page to show other coaches')), icon('chev')),
         S.settings.tips && Object.keys(S.settings.tips).length ? h('button', { class: 'item', onclick: () => { S.settings.tips = {}; save(); toast('Tips will show again.'); render(); } }, icon('bell'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Show tips again')), icon('chev')) : null,
-        h('button', { class: 'item', onclick: checkForUpdate }, icon('history'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Check for updates'), h('div', { class: 'pmeta' }, 'Version ' + APP.build)), icon('chev'))),
+        h('button', { class: 'item', onclick: checkForUpdate }, icon('history'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Check for updates'), h('div', { class: 'pmeta' }, 'Version ' + APP.build)), icon('chev')),
+        h('button', { class: 'item', onclick: reportProblem }, icon('mail'), h('div', { class: 'grow' }, h('div', { class: 'pnm' }, 'Report a problem'), h('div', { class: 'pmeta' }, 'Opens an email to RosterPulse with your build and phone type filled in. Add what happened and send.')), icon('chev'))),
       h('p', { class: 'faint tiny center', style: 'margin-top:24px' }, APP.label))];
 }
 

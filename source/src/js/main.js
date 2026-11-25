@@ -54,6 +54,41 @@ async function checkForUpdate() {
   applyUpdate();
 }
 
+/* t29: Report a problem. Opens an email with the build and phone details filled in. The subject must start with
+   "RosterPulse problem": the daily problem-report task searches Gmail for exactly that. */
+const SUPPORT = 'support@shotpulse.app';
+function reportInfo() {
+  const ua = navigator.userAgent || '';
+  let dev = 'Computer';
+  const ios = ua.match(/(iPhone|iPad|iPod).*?OS (\d+[_\d]*)/), and = ua.match(/Android (\d+(\.\d+)*)/);
+  if (ios) dev = ios[1] + ', iOS ' + ios[2].replace(/_/g, '.');
+  else if (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) dev = 'iPad (desktop mode)';
+  else if (and) dev = 'Android ' + and[1] + (/Mobile/.test(ua) ? ' phone' : ' tablet');
+  else if (/Mac OS X/.test(ua)) dev = 'Mac'; else if (/Windows/.test(ua)) dev = 'Windows'; else if (/Linux/.test(ua)) dev = 'Linux';
+  let home = false; try { home = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true; } catch (e) { /* ignore */ }
+  const evs = (S.events || []).filter(e => !e.demo);
+  const players = evs.reduce((n, e) => n + ((e.players || []).length), 0);
+  return [
+    'Build: ' + APP.build,
+    'Device: ' + dev,
+    'Opened as: ' + (home ? 'Home Screen app' : 'browser'),
+    'Screen: ' + screen.width + 'x' + screen.height + ', window ' + window.innerWidth + 'x' + window.innerHeight,
+    'Page: ' + (location.hash || '#/'),
+    'Online: ' + (navigator.onLine ? 'yes' : 'no'),
+    'Events: ' + evs.length + ' (' + evs.filter(e => e.share || e.join).length + ' shared), players: ' + players + ', templates: ' + (S.templates || []).length + (S.events.some(e => e.demo) ? ', demo open' : ''),
+    'Time: ' + new Date().toString(),
+    'Browser: ' + ua].join('\n');
+}
+function reportUrl() {
+  const subject = 'RosterPulse problem (' + APP.build + ')';
+  const body = 'What happened?\n\n\n\nWhat did you expect?\n\n\n\n---- please leave this part, it helps fix the problem ----\n' + reportInfo();
+  return 'mailto:' + SUPPORT + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+}
+function reportProblem() {
+  location.href = reportUrl();
+  setTimeout(() => toast('If no email opened, write to ' + SUPPORT), 1200);
+}
+
 let lastRoute = '';
 function render() {
   parseRoute();
@@ -95,5 +130,5 @@ function render() {
   if (jm) { const n0 = (new URLSearchParams(location.search).get('n') || '').slice(0, 30); history.replaceState(null, '', '/' + location.hash); setTimeout(() => joinSheet(jm[1].toUpperCase(), n0), 150); }
   applyTheme();
   setTimeout(syncTick, 800);
-  window.__rp = { APP, S, SPORTS, parseRoster, formFromSport, newEvent, render, syncEvent, SYNC };   // for tests
+  window.__rp = { APP, S, SPORTS, parseRoster, formFromSport, newEvent, render, syncEvent, SYNC, reportInfo, reportUrl, reportProblem };   // for tests
 })();
