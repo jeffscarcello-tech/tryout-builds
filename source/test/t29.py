@@ -1,4 +1,4 @@
-# Browser run of t29: Report a problem (Home, More). At 390 px (phone) and 1280 px (desktop):
+# Browser run of t29/t30: Report a problem (Home, More). t30: the two questions are typed in a sheet first. At 390 px (phone) and 1280 px (desktop):
 #   the button shows right under Check for updates and is tap-sized; tapping it asks for a mailto: address with the
 #   right address, a subject starting "RosterPulse problem (<build>)" and a body with the questions and the details;
 #   the counts match (2 real events, 5 players, demo noted); the backup toast shows; no page errors.
@@ -25,22 +25,30 @@ try:
         assert 'Report a problem' in items[i + 1], 'not right under Check for updates'
         btn = pg.locator('.item', has_text='Report a problem'); bb = btn.bounding_box()
         assert bb['height'] >= 44 and bb['width'] >= 300, bb
-        assert 'build and phone type filled in' in btn.inner_text()
-        # catch the mailto instead of leaving the page
-        pg.evaluate("() => { window.__mails = []; const r = window.__rp; window.__real = r.reportUrl; }")
-        url = pg.evaluate("window.__rp.reportUrl()")
+        assert 'phone type are added for you' in btn.inner_text()
+        url = pg.evaluate("window.__rp.reportUrl('Tapped Save as PDF.\\nNothing opened.', 'A PDF')")
         assert url.startswith('mailto:support@shotpulse.app?subject='), url
+        assert '%0D%0A' in url and '%0A' not in url.replace('%0D%0A', ''), 'line breaks must be CRLF'
         q = urllib.parse.parse_qs(url.split('?', 1)[1])
         assert q['subject'][0] == 'RosterPulse problem (' + BUILD + ')', q['subject']
-        body = q['body'][0]
-        for need in ['What happened?', 'What did you expect?', 'please leave this part', 'Build: ' + BUILD, 'Device: ', 'Opened as: browser',
-                     'Screen: ', 'window %dx%d' % (vp['width'], vp['height']), 'Page: #/', 'Online: yes', 'Events: 2 (0 shared), players: 5, templates: 0, demo open', 'Browser: ']:
+        body = q['body'][0].replace('\r\n', '\n')
+        for need in ['1) What happened: Tapped Save as PDF. / Nothing opened.', '2) What I expected: A PDF', '— Details for the fix (please leave) —', '• Build: ' + BUILD, '• Device: ', '• Opened as: browser',
+                     '• Screen: ', 'window %dx%d' % (vp['width'], vp['height']), '• Page: #/', '• Online: yes', '• Events: 2 (0 shared), players: 5, templates: 0, demo open', '• Browser: ']:
             assert need in body, need
-        # tap the real button: the browser is sent to the mailto address, then the toast shows
-        pg.route('**/*', lambda r: r.continue_())
-        pg.on('request', lambda r: mails.append(r.url) if r.url.startswith('mailto:') else None)
-        pg.evaluate("() => { const L = window.location; window.__go = []; }")
-        btn.click(); pg.wait_for_timeout(1500)
+        # even with every line break dropped (Gmail on iPhone) each part still starts with its marker
+        flat = ' '.join(body.split())
+        assert '1) What happened: Tapped' in flat and ' 2) What I expected: A PDF' in flat and ' • Device: ' in flat
+        # the real button opens the sheet; typing and Open email sends the browser to the mailto address
+        btn.click(); pg.wait_for_selector('text=What did you expect?')
+        sheet_box = pg.locator('.sheet').bounding_box(); assert sheet_box['width'] <= vp['width'] + 1
+        pg.locator('[data-r=what]').fill('Nothing loads'); pg.locator('[data-r=exp]').fill('Home screen')
+        sb = pg.locator('[data-r=send]').bounding_box(); assert sb['height'] >= 40, sb
+        pg.wait_for_timeout(700); pg.screenshot(path=f'test/t30-{name}-sheet.png')
+        pg.evaluate("() => { window.__rp.__go = null; }")
+        reqs = []
+        pg.on('framenavigated', lambda f: None)
+        pg.locator('[data-r=send]').click(); pg.wait_for_timeout(1500)
+        assert pg.locator('.sheet').count() == 0, 'sheet should close'
         assert 'If no email opened, write to support@shotpulse.app' in pg.inner_text('body'), 'no backup toast'
         assert pg.evaluate('window.__rp.APP.build') == BUILD
         pg.screenshot(path=f'test/t29-{name}.png', full_page=False)

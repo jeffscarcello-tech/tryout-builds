@@ -79,14 +79,34 @@ function reportInfo() {
     'Time: ' + new Date().toString(),
     'Browser: ' + ua].join('\n');
 }
-function reportUrl() {
+/* t30: the questions are typed in the app (two boxes), then the email opens ready to send. The Gmail app on iPhone
+   drops line breaks when it sends, so every line starts with a marker ("1)", "2)", "•") that still reads well when
+   everything runs together. */
+function reportUrl(what, expected) {
   const subject = 'RosterPulse problem (' + APP.build + ')';
-  const body = 'What happened?\n\n\n\nWhat did you expect?\n\n\n\n---- please leave this part, it helps fix the problem ----\n' + reportInfo();
-  return 'mailto:' + SUPPORT + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  const one = t => String(t || '').trim().replace(/\s*\n\s*/g, ' / ').slice(0, 1000);
+  const body = '1) What happened: ' + one(what) + '\n\n' +
+    '2) What I expected: ' + one(expected) + '\n\n' +
+    '— Details for the fix (please leave) —\n' + reportInfo().split('\n').map(l => '• ' + l).join('\n') + '\n';
+  return 'mailto:' + SUPPORT + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body).replace(/%0A/g, '%0D%0A');
 }
-function reportProblem() {
-  location.href = reportUrl();
+function reportProblem(what, expected) {
+  location.href = reportUrl(what, expected);
   setTimeout(() => toast('If no email opened, write to ' + SUPPORT), 1200);
+}
+function reportSheet() {
+  openSheet((s, api) => {
+    const what = h('textarea', { class: 'inp', 'data-r': 'what', maxlength: '1000', style: 'min-height:96px', placeholder: 'For example: I tapped Save as PDF on a player card and nothing opened.' });
+    const exp = h('textarea', { class: 'inp', 'data-r': 'exp', maxlength: '1000', style: 'min-height:72px', placeholder: 'For example: the PDF to open so I could share it.' });
+    s.append(h('h2', null, 'Report a problem'),
+      h('div', { class: 'stack' },
+        field('What happened?', what),
+        field('What did you expect?', exp),
+        h('p', { class: 'note' }, 'Next, your email app opens with this filled in, plus your version and phone type. Just tap Send. Nothing about your players is included.'),
+        h('div', { class: 'acts' }, h('button', { class: 'btn', onclick: () => api.close() }, 'Cancel'),
+          h('button', { class: 'btn primary', 'data-r': 'send', onclick: () => { api.close(); reportProblem(what.value, exp.value); } }, icon('mail'), 'Open email'))));
+    setTimeout(() => { try { what.focus(); } catch (e) { /* ignore */ } }, 80);
+  });
 }
 
 let lastRoute = '';
@@ -130,5 +150,5 @@ function render() {
   if (jm) { const n0 = (new URLSearchParams(location.search).get('n') || '').slice(0, 30); history.replaceState(null, '', '/' + location.hash); setTimeout(() => joinSheet(jm[1].toUpperCase(), n0), 150); }
   applyTheme();
   setTimeout(syncTick, 800);
-  window.__rp = { APP, S, SPORTS, parseRoster, formFromSport, newEvent, render, syncEvent, SYNC, reportInfo, reportUrl, reportProblem };   // for tests
+  window.__rp = { APP, S, SPORTS, parseRoster, formFromSport, newEvent, render, syncEvent, SYNC, reportInfo, reportUrl, reportProblem, reportSheet };   // for tests
 })();
