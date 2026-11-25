@@ -1,6 +1,7 @@
 // =====================================================================
 // Tryout app server (Cloudflare Worker). Test site: Worker "tryouttest", D1 database "tryouttest" bound as DB.
 //
+// t6: every organizer has the same rights: any organizer can add or remove organizers and stop sharing (Jeff, Nov 25).
 // t5: stations (skills per evaluator) and the finished flag carried in the event copy; evaluators cannot send
 //     scores, notes or check-ins once the organizer finishes (locks) the event.
 // t4: several organizers per event (the owner invites more with one-time 8-character codes; each gets its own token),
@@ -18,7 +19,7 @@
 //
 // Health check: GET /api/health
 // =====================================================================
-const LOADER = 'tr-loader-t5';
+const LOADER = 'tr-loader-t6';
 const APP_KIND = 'tryout';          // only app files built for this app are accepted (a ShotPulse file is refused)
 const ADMIN_SALT = 'tr-admin:';
 
@@ -309,8 +310,8 @@ async function handleShared(request, env, p) {
   }
   if (act === 'evaluators') return json({ evaluators: ((await db.prepare('SELECT vid, name, joined, seen FROM seval WHERE eid = ?1 ORDER BY joined, rowid').bind(eid).all()).results || []) });
   if (act === 'remove') { await db.prepare('DELETE FROM seval WHERE eid = ?1 AND vid = ?2').bind(eid, String(body.vid || '')).run(); return json({ ok: true }); }   // their scores stay; their phone can no longer send
-  /* only the organizer who started sharing (the owner) adds or removes organizers and stops sharing */
-  if (!who.owner) return json({ error: 'owner_only' }, 403);
+  /* t6: any organizer adds or removes organizers and can stop sharing (all organizers are equal). The owner key itself
+     cannot be removed; an organizer removing themselves is the same as leaving. */
   if (act === 'orginvite') {
     let code = '';
     for (let i = 0; i < 6 && !code; i++) { const c = rnd(8, CODE_CHARS); if (!(await db.prepare('SELECT code FROM sinv WHERE code = ?1').bind(c).first())) code = c; }

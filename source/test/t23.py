@@ -85,9 +85,10 @@ def run(p, name, vp, mobile):
     comp.locator('button', has_text='Edit').first.click(); sheet(comp).locator('input.inp').nth(1).fill('Ava Brown'); sheet(comp).locator('button', has_text='Save').last.click()
     wait_for(lambda: any(pl['name'] == 'Ava Brown' for pl in state(ph)['events'][0]['players']), 'computer change reaches the phone')
 
-    # the menu item is not offered to the joined phone (only the owner can make codes)
+    # t32: the joined device is an organizer too, so it can open the event on yet another device
     ph.locator('button[aria-label="Event options"]').click(); ph.wait_for_selector('.sheet .item')
-    assert ph.locator('.sheet .item', has_text='Open on another device').count() == 0
+    ph.locator('.sheet .item', has_text='Open on another device').click(); ph.wait_for_selector('.jcode8')
+    assert len(ph.locator('.jcode8').inner_text().replace('\n', '').replace(' ', '')) == 8
     b.close()
     assert not errs, errs
     print(name, 'ok')

@@ -23,6 +23,7 @@ Created Nov 25 2026: 7:03 PM Central (CRON_TZ=America/Winnipeg 3 19 * * *), push
 
 ## Recent changes
 - Nov 25: daily problem-report task created; both test reports (t29, t30) reached Jeff's inbox, t30 reads well in Gmail.
+- nov25-t32: every organizer can add or remove organizers, open the event on another device and stop sharing (loader tr-loader-t6, deployed Nov 25).
 - nov25-t31: a player can have more than one position (tap all that apply); ranked and filtered in each; imports read "Setter/Outside"; Forward and Goalie gets both skill lists.
 - nov25-t30: problem reports are typed in the app first; email laid out to survive lost line breaks.
 - nov25-t29: Report a problem button.

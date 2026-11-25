@@ -18,11 +18,12 @@ const payloadOf = ev => ({ name: ev.name, sport: ev.sport, form: ev.form, groups
   assign: (ev.share && ev.share.assign) || {}, helpers: (ev.share && ev.share.helpers) || [], checks: checkMapOf(ev), stations: (ev.share && ev.share.stations) || {}, locked: !!ev.locked });
 /* what other organizers get: the full setup, never scores (those are records) */
 const orgPayloadOf = ev => ({ name: ev.name, sport: ev.sport, form: ev.form, groups: ev.groups, players: ev.players, sessions: ev.sessions || [], line: ev.line || 0,
-  assign: (ev.share && ev.share.assign) || {}, helpers: (ev.share && ev.share.helpers) || [], names: ev.orgNames || {}, stations: (ev.share && ev.share.stations) || {}, locked: !!ev.locked });
+  assign: (ev.share && ev.share.assign) || {}, helpers: (ev.share && ev.share.helpers) || [], names: ev.orgNames || {}, stations: (ev.share && ev.share.stations) || {}, locked: !!ev.locked,
+  owner: isOwner(ev) ? me().id : (ev.ownerId || '') });   // t32: who started sharing, so other organizers can name them
 function applyOrgCopy(ev, d) {
   Object.assign(ev, { name: d.name, sport: d.sport, form: d.form, groups: d.groups || [], players: d.players || [], sessions: d.sessions && d.sessions.length ? d.sessions : ev.sessions, line: d.line || 0 });
   ev.share.assign = d.assign || {}; ev.share.helpers = d.helpers || []; ev.share.stations = d.stations || {}; ev.locked = !!d.locked;
-  ev.orgNames = Object.assign({}, ev.orgNames || {}, d.names || {});
+  ev.orgNames = Object.assign({}, ev.orgNames || {}, d.names || {}); if (d.owner) ev.ownerId = d.owner;
   ev.evaluators = Object.assign({}, ev.evaluators || {}, ev.orgNames);
 }
 /* two organizers changed the setup at the same time: keep both where we can.
@@ -157,7 +158,7 @@ function syncPill(ev) {
   let cls = 'ok', text;
   if (box.gone) { cls = 'bad'; text = 'Sharing stopped'; }
   else if (ev.join && ev.join.removed) { cls = 'bad'; text = 'Removed by organizer'; }
-  else if (ev.share && ev.share.removed) { cls = 'bad'; text = 'Removed by the owner'; }
+  else if (ev.share && ev.share.removed) { cls = 'bad'; text = 'Removed by an organizer'; }
   else if (!navigator.onLine || st.off) { cls = 'off'; text = wait ? wait + ' waiting · no signal' : 'No signal'; }
   else if (st.err) { cls = 'off'; text = wait ? wait + ' waiting · retrying' : 'Retrying'; }
   else text = wait ? wait + ' sending…' : (ev.share ? 'Live · code ' + ev.share.code : 'Live · all sent');
@@ -175,7 +176,7 @@ async function startShare(ev) {
 }
 /* Open on another device (t23, renamed t24): the same event on your other phone, tablet or computer, kept in step. It is an organizer invite with plainer words. */
 async function openOnDevice(ev) {
-  if (ev.share && !isOwner(ev)) { toast('Only the phone or computer that started sharing can do this.'); return; }
+  if (ev.join) { toast('Only organizers can do this.'); return; }   // t32: any organizer, not only the owner
   if (!navigator.onLine) { toast('This needs a signal. Try again when online.'); return; }
   if (!ev.share) {
     try { await startShare(ev); render(); }
@@ -218,11 +219,11 @@ function shareSheet(ev) {
           } }, icon('x'))), evalSettings(ev, x)))) : h('p', { class: 'note' }, 'Nobody has joined yet.'),
         h('div', null, organizersPart(ev, paint)),
         h('div', { class: 'acts' },
-          isOwner(ev) ? h('button', { class: 'btn danger', onclick: async () => {
-            if (!(await confirmBox({ title: 'Stop sharing?', message: 'Evaluators can no longer send scores, and the copy on the server is deleted. Scores already on this phone stay. You can share again later (with a new code).', ok: 'Stop sharing', danger: true }))) return;
+          h('button', { class: 'btn danger', onclick: async () => {   // t32: any organizer can stop sharing
+            if (!(await confirmBox({ title: 'Stop sharing for everyone?', message: 'Evaluators and the other organizers can no longer send scores, and the copy on the server is deleted. Scores already on this phone stay. You can share again later (with a new code).', ok: 'Stop sharing', danger: true }))) return;
             try { await api('/api/ev/' + ev.id + '/stop', {}, authOf(ev)); } catch (e) { if (e.status !== 410) { toast(e.message); return; } }
-            delete ev.share; delete ev.liveEvals; for (const o of boxes(ev)) for (const k in o) if (o[k]) delete o[k].q; save(true); api_.close(); render();
-          } }, 'Stop sharing') : null,
+            delete ev.share; delete ev.liveEvals; delete ev.liveOrgs; for (const o of boxes(ev)) for (const k in o) if (o[k]) delete o[k].q; save(true); api_.close(); render();
+          } }, 'Stop sharing'),
           h('button', { class: 'btn primary', onclick: () => api_.close() }, 'Done')));
     };
     paint();
@@ -230,19 +231,22 @@ function shareSheet(ev) {
   });
 }
 /* ---------------- organizers ---------------- */
+// t32: every organizer has the same rights (add or remove organizers, stop sharing, open on another device).
+// The owner's name, when an organizer's phone knows it from the organizers' copy.
+function ownerName(ev) { const n = (ev.orgNames || {})[ev.ownerId]; return n || 'The organizer who started sharing'; }
 function organizersPart(ev, paint) {
   const orgs = ev.liveOrgs || [];
-  const rows = [h('div', { class: 'krow' }, h('div', { class: 'knm' }, h('div', { class: 'pnm' }, isOwner(ev) ? (me().name ? me().name + ' (you)' : 'You') : 'The owner'), h('div', { class: 'pmeta' }, 'Started sharing · can stop it')))]
+  const rows = [h('div', { class: 'krow' }, h('div', { class: 'knm' }, h('div', { class: 'pnm' }, isOwner(ev) ? (me().name ? me().name + ' (you)' : 'You') : ownerName(ev)), h('div', { class: 'pmeta' }, 'Started sharing')))]
     .concat(orgs.map(o => h('div', { class: 'krow' },
       h('div', { class: 'knm' }, h('div', { class: 'pnm' }, o.name + (ev.share.oid === o.oid ? ' (you)' : '')), h('div', { class: 'pmeta' }, 'Joined ' + fmtDate(o.joined) + ' · last seen ' + ago(o.seen))),
-      isOwner(ev) ? h('button', { class: 'mini', 'aria-label': 'Remove ' + o.name, onclick: async () => {
+      ev.share.oid !== o.oid ? h('button', { class: 'mini', 'aria-label': 'Remove ' + o.name, onclick: async () => {   // t32: any organizer removes another
         if (!(await confirmBox({ title: 'Remove ' + o.name + ' as organizer?', message: 'Their phone stops getting scores and changes. What they already have stays on their phone.', ok: 'Remove', danger: true }))) return;
         try { await api('/api/ev/' + ev.id + '/orgremove', { oid: o.oid }, authOf(ev)); ev.liveOrgs = orgs.filter(y => y !== o); save(); paint(); } catch (e) { toast(e.message); }
       } }, icon('x')) : null)));
   return [sect('Organizers', h('span', { class: 'cnt' }, orgs.length + 1)),
     h('p', { class: 'note', style: 'margin:-2px 0 8px' }, 'Organizers see everything: all scores, results, private notes and team decisions, and can change the event.'),
     h('div', { class: 'list', style: 'gap:6px' }, rows),
-    isOwner(ev) ? h('button', { class: 'btn block', style: 'margin-top:8px', onclick: () => orgInviteSheet(ev) }, icon('plus'), 'Add an organizer') : null];
+    h('button', { class: 'btn block', style: 'margin-top:8px', onclick: () => orgInviteSheet(ev) }, icon('plus'), 'Add an organizer')];   // t32: any organizer
 }
 async function orgInviteSheet(ev, mine) {
   if (!navigator.onLine) { toast('Adding an organizer needs a signal.'); return; }
@@ -307,7 +311,7 @@ function joinSheet(code0, name0) {
           if (!me().name) me().name = n;
           const d = j.odata || j.data, ev = Object.assign({ id: j.eid, created: Date.now(), updated: Date.now(), scores: {}, notes: {}, checks: {}, decs: {}, evaluators: {} }, { sport: d.sport, name: d.name, form: d.form, groups: d.groups || [], players: d.players || [], sessions: d.sessions && d.sessions.length ? d.sessions : [{ id: 'd1', name: 'Day 1' }] },
             { share: { code: j.code, oid: j.oid, tok: j.tok, since: 0, rev: j.rev, orev: j.orev || 0, sent: '', osent: '' } });
-          ev.share.assign = d.assign || {}; ev.share.helpers = d.helpers || []; ev.share.stations = d.stations || {}; ev.locked = !!d.locked; ev.line = d.line || 0; ev.orgNames = Object.assign({}, d.names || {}, { [me().id]: n }); ev.evaluators = Object.assign({}, ev.orgNames);
+          ev.share.assign = d.assign || {}; ev.share.helpers = d.helpers || []; ev.share.stations = d.stations || {}; ev.locked = !!d.locked; ev.line = d.line || 0; ev.orgNames = Object.assign({}, d.names || {}, { [me().id]: n }); ev.evaluators = Object.assign({}, ev.orgNames); if (d.owner) ev.ownerId = d.owner;
           ev.share.osent = JSON.stringify(orgPayloadOf(ev)); ev.share.sent = JSON.stringify(payloadOf(ev));
           S.events.unshift(ev); save(true); api_.close(); go('e', ev.id, 'results'); toast('You are an organizer of ' + ev.name + '. Scores are coming in.');
           syncSoon(ev); return;

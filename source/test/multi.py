@@ -165,6 +165,27 @@ with sync_playwright() as p:
     wait_for(lambda: any(pl.get('name') == 'Two Added' for pl in state(org)['events'][0]['players']), 'second organizer\'s new player reaches the owner', 40)
     assert any(pl.get('name') == 'Jo Parker' for pl in state(org)['events'][0]['players']), 'both edits kept'
     wait_for(lambda: any(pl.get('name') == 'Two Added' for pl in state(e1)['events'][0]['players']), 'and the evaluators', 40)
+    # t32: the second organizer (not the owner) adds a third organizer, who joins; then removes them
+    o2.evaluate("location.hash = '#/e/%s/players'" % evid); o2.wait_for_selector('text=Import list')
+    o2.click('text=Evaluators · ' + code); o2.wait_for_selector('text=Add an organizer')
+    assert o2.locator('.sheet button', has_text='Stop sharing').count() == 1, 'every organizer can stop sharing'
+    o2.locator('.sheet button', has_text='Add an organizer').click(); o2.wait_for_selector('.jcode8')
+    inv3 = o2.locator('.jcode8').inner_text().replace('\n', '').replace(' ', ''); assert len(inv3) == 8, inv3
+    time.sleep(0.7); o2.screenshot(path='test/multi-8-organizer-invites.png')
+    o2.locator('.sheet button', has_text='Done').last.click(); time.sleep(0.3)
+    if o2.locator('.sheet').count(): o2.locator('.sheet button', has_text='Done').last.click(); time.sleep(0.3)
+    c3 = b.new_context(**phone); c3.add_init_script("localStorage.setItem('rp.notips','1')"); o3 = c3.new_page()
+    o3.on('pageerror', lambda e: errs.append('o3: ' + str(e)))
+    o3.goto(URL + 'j/' + inv3); o3.wait_for_selector('input.jinp'); sheet(o3).locator('input.inp').nth(1).fill('Coach Three'); sheet(o3).locator('button', has_text='Join').click()
+    wait_for(lambda: (state(o3) or {}).get('events') and any(pl.get('notes') == 'secret note' for pl in state(o3)['events'][0]['players']), 'third organizer (invited by the second) gets the full event', 40)
+    o2.click('text=Evaluators · ' + code); o2.wait_for_selector('text=Coach Three')
+    assert o2.locator('button[aria-label="Remove Coach Two"]').count() == 0, 'no remove button on your own row'
+    o2.locator('text=Organizers').last.scroll_into_view_if_needed(); time.sleep(0.6); o2.screenshot(path='test/multi-9-organizers-list.png'); print('owner id on o2:', o2.evaluate('window.__rp.S.events[0].ownerId'), 'owner name:', org.evaluate('window.__rp.S.settings.me && window.__rp.S.settings.me.name')); print('owner row:', o2.locator('.sheet .krow').filter(has_text='Started sharing').inner_text().replace(chr(10), ' | '))
+    assert 'Organizer A (started sharing)' not in o2.inner_text('.sheet') and 'Coach Two (started sharing)' not in o2.inner_text('.sheet')
+    o2.locator('button[aria-label="Remove Coach Three"]').click(); o2.locator('.sheet button', has_text='Remove').last.click(); time.sleep(0.5)
+    o3.evaluate("window.__rp.syncEvent(window.__rp.S.events[0])"); wait_for(lambda: state(o3)['events'][0]['share'].get('removed'), 'the second organizer removed the third', 40)
+    o2.locator('.sheet button', has_text='Done').last.click(); time.sleep(0.3)
+    c3.close()
     org.evaluate("location.hash = '#/e/%s/players'" % evid); org.wait_for_selector('text=Import list')
     org.click('text=Evaluators · ' + code); org.wait_for_selector('text=Coach Two')
     org.locator('button[aria-label="Remove Coach Two"]').click(); org.locator('.sheet button', has_text='Remove').last.click(); time.sleep(0.5)

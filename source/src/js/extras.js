@@ -82,7 +82,7 @@ const HELP = [
   ['Other organizers', [
     'After you share an event, Share sheet, Add an organizer makes a one-time 8-character code (with a QR code). The other organizer taps Join with a code on their phone or computer.',
     'Organizers see and change everything: scores, results, private notes, check-in and team decisions. Add as many as you need, one code each.',
-    'Only you (the owner, who started sharing) can add or remove organizers and stop sharing. Another organizer can leave by deleting the event on their phone.',
+    'Every organizer can do the same things: add or remove other organizers, open the event on another device, and stop sharing for everyone. To leave, an organizer deletes the event on their phone.',
     'If two organizers change the setup at the same moment, both changes are kept where possible.']],
   ['Team decisions', [
     'Results tab, Team decisions. Tap Made team, Waitlist or Not selected beside each player, or Fill from ranking to do it in one go (it starts from the team line).',
