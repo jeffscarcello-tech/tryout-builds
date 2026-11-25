@@ -19,9 +19,10 @@ Builds and source for RosterPulse, Jeff's tryout and camp evaluation app.
 - The subject must keep starting with "RosterPulse problem": the daily task searches Gmail for exactly that.
 
 ## Daily RosterPulse problem reports (scheduled task)
-Each evening it searches Gmail for `subject:"RosterPulse problem" newer_than:3d -label:RosterPulse-handled`. It sorts reports into clear bug, unclear and request. For clear bugs only, it fixes the source, builds the next test version, tests it at 390 and 1280 px and pushes it to `test/` (the test site). It never changes a Worker, never touches ShotPulse, never replies to or deletes email, and never builds requests. It labels what it read `RosterPulse-handled` and sends Jeff a short summary.
+Created Nov 25 2026: 7:03 PM Central (CRON_TZ=America/Winnipeg 3 19 * * *), push notification only. Each evening it searches Gmail for `subject:"RosterPulse problem" newer_than:3d -label:RosterPulse-handled`. It sorts reports into clear bug, unclear and request. For clear bugs only, it fixes the source, builds the next test version, tests it at 390 and 1280 px and pushes it to `test/` (the test site). It never changes a Worker, never touches ShotPulse, never replies to or deletes email, and never builds requests. It labels what it read `RosterPulse-handled` and sends Jeff a short summary.
 
 ## Recent changes
+- Nov 25: daily problem-report task created; both test reports (t29, t30) reached Jeff's inbox, t30 reads well in Gmail.
 - nov25-t30: problem reports are typed in the app first; email laid out to survive lost line breaks.
 - nov25-t29: Report a problem button.
 - nov24-t28: Check for updates asks the server.
